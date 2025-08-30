@@ -1,0 +1,52 @@
+---
+title: Reading Data
+description: Choose between server `nexus(...)` in RSC and client `useNexusQuery`—quick patterns and tips.
+---
+
+# Reading Data
+
+Pick the right place to read data and keep it predictable.
+
+## Quick chooser
+- Server (RSC): call `nexus(def)` in server components.
+- Client: call `useNexusQuery(def)` in client components.
+- Prefer server reads for SEO and initial page content; use client reads for interactive views or user-scoped queries.
+
+## Server read (RSC)
+```ts path=null start=null
+import { nexus } from 'next-nexus'
+import { usersDefinition } from '@/definitions'
+
+// Next.js 15+ (params is async)
+export default async function Page({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params
+const res = await nexus(usersDefinition.getById(id))
+  return <p>{res.data.id}</p>
+}
+```
+
+> Note: Follow the Next.js version guide for Page props.
+> - Next.js 15+: `params` and `searchParams` are Promises (async). Use `const { id } = await params`.
+> - Next.js 14.x and below: they are plain objects. Use `params.id` directly.
+
+## Client read (hook)
+```tsx path=null start=null
+'use client'
+import { useNexusQuery } from 'next-nexus/client'
+import { usersDefinition } from '@/definitions'
+
+export function UserPanel({ id }: { id: string }) {
+  // Pass a concrete GET definition (e.g., from a factory)
+const { data, error, isPending } = useNexusQuery(usersDefinition.getById(id))
+  if (isPending && !data) return <p>Loading…</p>
+  if (error) return <p>Error</p>
+  return <pre>{JSON.stringify(data, null, 2)}</pre>
+}
+```
+
+## Tips
+- Definitions (including params) determine the stable cache key; hydration lets the client reuse server reads.
+- Configure `server.tags/revalidate` and `client.tags/revalidate` in the definition to map to Next.js caching behavior.
+
+See also: [nexus](/en/api/nexus), [useNexusQuery](/en/api/hooks/use-nexus-query), [Definitions](/en/api/definitions).
+

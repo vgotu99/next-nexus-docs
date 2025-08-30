@@ -1,0 +1,79 @@
+---
+title: NexusProvider
+description: Enable automatic hydration and client initialization across Server/Client.
+---
+
+# NexusProvider
+
+Wrap your app with `NexusProvider` to enable hydration between Server and Client and initialize client helpers.
+
+## Usage
+
+```tsx path=null start=null
+// app/layout.tsx
+import { NexusProvider } from "next-nexus";
+
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  return (
+    <html lang="en">
+      <body>
+        <NexusProvider>{children}</NexusProvider>
+      </body>
+    </html>
+  );
+}
+```
+
+## On the Server (per request)
+- Read inbound `x-nexus-client-cache` (if present) to decide whether to hydrate, skip hydration on ETag match, or delegate with `<NexusSuspense>`.
+- After executing GET requests that include `client` options, collect hydration entries (data, tags, client TTL, server tags, optional cached headers) and decide `notModifiedKeys` when ETag matches.
+- Inject a script into HTML so the client can restore:
+  ```js path=null start=null
+  window.__NEXUS_PAYLOAD__ = { hydrationData, notModifiedKeys };
+  ```
+
+## On the Client
+- Hydration on mount: restore `hydrationData`, extend TTL for `notModifiedKeys` (no data transfer), log in dev, then remove the script.
+- Request-time header insertion (RSC only): lightly intercept `fetch` and attach `x-nexus-client-cache` (TTL/ETag metadata for candidate keys) so the server can make smarter decisions. The header is size‑bounded (~8KB); oversized metadata is safely truncated.
+- Optionally control client cache size via the `maxSize` prop (default 200).
+
+## Hydration payload shape
+
+```json path=null start=null
+{
+  "hydrationData": {
+    "GET:/products|tags:products": {
+      "data": [{ "id": "1", "name": "A" }],
+      "clientRevalidate": 300,
+      "clientTags": ["products"],
+      "serverTags": ["products"],
+      "etag": "W/\"abc\"",
+      "headers": { "x-total-count": "42" }
+    }
+  },
+  "notModifiedKeys": ["GET:/products|tags:products"]
+}
+```
+
+## Props
+
+- `maxSize?: number` — client cache LRU size (default: sensible internal default).
+
+## Tips
+
+- Enable dev logs: set `NEXT_PUBLIC_NEXUS_DEBUG=true` in `.env.local`.
+- Prefer tagging definitions to unlock precise server/client revalidation.
+
+## See also
+
+- [Definitions](/en/api/definitions)
+- [nexus](/en/api/nexus)
+- [Revalidation](/en/api/revalidation)
+
+## Navigation
+- Back to: [Getting Started](/en/getting-started)
+- Next: [Definitions](/en/api/definitions) → [useNexusQuery](/en/api/hooks/use-nexus-query)

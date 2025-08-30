@@ -1,0 +1,134 @@
+---
+title: Getting Started
+description: Quick start guide for next-nexus
+---
+
+# Getting Started
+
+## Install
+
+```bash
+npm install next-nexus
+# or
+pnpm install next-nexus
+# or
+yarn add next-nexus
+```
+
+**Requires:** Next.js >= 14.2 and React >= 18.2
+
+## - Wrap Your App with `NexusProvider`
+
+```tsx
+// app/layout.tsx
+import { NexusProvider } from 'next-nexus';
+
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  return (
+    <html lang='en'>
+      <body>
+        <NexusProvider>{children}</NexusProvider>
+      </body>
+    </html>
+  );
+}
+```
+
+## - Define Your API Request
+
+```ts
+// src/api/productDefinition.ts
+import { createNexusDefinition } from 'next-nexus';
+
+export interface Product {
+  id: string;
+  name: string;
+}
+
+// factory (required)
+export const createApiDefinition = createNexusDefinition({
+  baseURL: 'https://api.example.com',
+  retry: { count: 1, delay: 1 },
+  timeout: 5,
+});
+
+export const productDefinition = {
+  list: createApiDefinition<Product[]>({
+    method: 'GET',
+    endpoint: '/products',
+    server: {
+      tags: ['products'],
+      revalidate: 1800,
+    },
+    client: {
+      tags: ['products'],
+      revalidate: 300,
+      cachedHeaders: ['x-total-count'],
+    },
+  }),
+};
+```
+## Fetch in a Server Component
+
+```tsx
+// app/products/page.tsx
+import { nexus } from 'next-nexus';
+import { productDefinition } from '@/api/productDefinition';
+
+const ProductsPage = async () => {
+  const res = await nexus(productDefinition.list);
+  const products = res.data ?? [];
+
+  return (
+    <ul>
+      {products.map(p => (
+        <li key={p.id}>{p.name}</li>
+      ))}
+    </ul>
+  );
+};
+
+export default ProductsPage;
+```
+
+### Use in a Client Component
+
+```tsx
+// components/ProductListClient.tsx
+'use client';
+
+import { useNexusQuery } from 'next-nexus/client';
+import { productDefinition } from '@/api/productDefinition';
+
+export function ProductListClient() {
+  const { data, isPending } = useNexusQuery(productDefinition.list);
+  const products = data ?? [];
+
+  if (isPending && !data) return <div>Loading...</div>;
+
+  return (
+    <ul>
+      {products.map(p => (
+        <li key={p.id}>{p.name}</li>
+      ))}
+    </ul>
+  );
+}
+```
+
+## What's Next?
+
+- [Core Concepts](/en/core-concepts) - Learn about hydration, rendering delegation, and caching strategies
+- [API Reference](/en/api) - Explore all available hooks, components, and utilities
+
+## Navigation
+- Setup: [NexusProvider](/en/api/nexus-provider) → [Definitions](/en/api/definitions)
+- Data fetching: [nexus](/en/api/nexus) → [useNexusQuery](/en/api/hooks/use-nexus-query) / [useNexusMutation](/en/api/hooks/use-nexus-mutation)
+- Cross-cutting: [Interceptors](/en/api/interceptors) → [Revalidation](/en/api/revalidation) → [nexusCache](/en/api/nexus-cache)
+- Troubleshooting: [Debugging](/en/debugging) → [Error Handling](/en/api/errors)
+
+> **Congratulations!** 🎉 You've successfully set up next-nexus. Your app now has intelligent data management with automatic caching and hydration.

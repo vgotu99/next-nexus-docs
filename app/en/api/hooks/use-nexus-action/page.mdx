@@ -1,0 +1,50 @@
+---
+title: useNexusAction
+description: Client helper for calling server actions with pending/result states.
+---
+
+# useNexusAction
+
+Import:
+
+```ts path=null start=null
+import { useNexusAction } from 'next-nexus/client'
+```
+
+## Signature
+```ts path=null start=null
+useNexusAction<TResult = unknown, TError extends Error = Error, TArgs extends unknown[] = unknown[]>(
+  serverAction: (...args: TArgs) => Promise<TResult>,
+  options?: {
+    onStart?: (...args: TArgs) => void | Promise<void>
+    onSuccess?: (result: TResult, ...args: TArgs) => void | Promise<void>
+    onError?: (error: Error, ...args: TArgs) => void | Promise<void>
+    onSettled?: (result: TResult | undefined, error: Error | null, ...args: TArgs) => void | Promise<void>
+  }
+)
+```
+
+## Notes
+- Wraps a server action; manages `isPending`, `result`, and error.
+- Provides `execute` (fire-and-forget) and `executeAsync`.
+
+## Example
+```tsx path=null start=null
+'use client'
+import { useNexusAction } from 'next-nexus/client'
+
+export function UpdateProductName({ productId }: { productId: string }) {
+  const { execute, isPending } = useNexusAction(
+    async (id: string, name: string) => {
+      'use server'
+      return { success: true }
+    }
+  )
+
+  return (
+    <button onClick={() => execute(productId, 'New Name')} disabled={isPending}>
+      {isPending ? 'Updating…' : 'Update Name'}
+    </button>
+  )
+}
+```

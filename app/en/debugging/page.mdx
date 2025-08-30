@@ -1,0 +1,28 @@
+---
+title: Debugging
+description: Enable dev logs and understand cache/request events.
+---
+
+# Debugging (Dev Only)
+
+Enable detailed cache logs:
+```bash path=null start=null
+# .env.local
+NEXT_PUBLIC_NEXUS_DEBUG=true
+```
+
+## Request Events
+- START — request started
+- SUCCESS — request finished successfully
+- ERROR — request failed
+- TIMEOUT — request aborted by timeout
+
+## Cache Events
+- HIT/MISS — client cache lookup results
+- SKIP/MATCH — server decided to skip hydration (notModified) or matched a client entry
+- DELEGATE — server delegated rendering with `<NexusSuspense>`
+- SET/UPDATE/DELETE — client cache write operations
+- Logs include baseKey, tags, ttl, revalidate, size/maxSize (dev only).
+
+> Logs are printed only in development.
+

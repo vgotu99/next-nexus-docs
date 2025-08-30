@@ -1,0 +1,39 @@
+---
+title: useNexusFormAction
+description: Client helper to integrate server actions with HTML forms.
+---
+
+# useNexusFormAction
+
+Import:
+
+```ts path=null start=null
+import { useNexusFormAction } from 'next-nexus/client'
+```
+
+## Notes
+- Integrates a server action with `<form action={formAction}>`.
+- Exposes `isPending`, `isSuccess`, `isError`, `result`, `error`, and `reset`.
+
+## Example
+```tsx path=null start=null
+'use client'
+import { useNexusFormAction } from 'next-nexus/client'
+
+export default function ProductForm() {
+  const { formAction, isPending, isSuccess } = useNexusFormAction(
+    async (formData: FormData) => {
+      'use server'
+      return { ok: true }
+    }
+  )
+
+  return (
+    <form action={formAction}>
+      <input name="name" />
+      <button type="submit" disabled={isPending}>Save</button>
+      {isSuccess && <div>Saved!</div>}
+    </form>
+  )
+}
+```

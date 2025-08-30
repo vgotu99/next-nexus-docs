@@ -1,0 +1,23 @@
+---
+title: Introduction
+description: The intelligent data layer for Next.js
+---
+
+# next-nexus
+
+The intelligent data layer for Next.js — automatic caching, seamless hydration, and built-in cost savings.
+
+- Smart caching and hydration across Server/Client
+- Rendering delegation via `<NexusSuspense>`
+- Tag-based revalidation for server/client caches
+
+See [Getting Started](/en/getting-started) to integrate in minutes.
+
+## Why next-nexus?
+
+`next-nexus` solves common data management challenges in the Next.js App Router:
+
+- **Eliminates UI Flicker & Refetching**: Data fetched on the server is automatically hydrated to the client, preventing duplicate requests and ensuring a smooth user experience.
+- **Reduces Server Costs & TTFB**: With Rendering Delegation, the server can skip rendering components if the client already has fresh data, leading to faster initial page loads and lower operational costs.
+- **Saves Bandwidth**: ETag-based conditional requests prevent re-downloading data that hasn't changed.
+- **Simplifies Cache Management**: Precise, tag-based revalidation allows you to invalidate specific data across both server and client caches with a single action.

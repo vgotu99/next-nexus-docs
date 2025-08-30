@@ -1,0 +1,50 @@
+---
+title: Caching & Revalidation
+description: How tags and revalidate map to next‑nexus (client/server) and Next.js ISR.
+---
+
+# Caching & Revalidation
+
+Keep it simple: next‑nexus uses tags/revalidate on both server and client via definitions.
+
+## Basics
+
+- Default: when `server.cache` is omitted, next‑nexus uses `no-store` across versions (Next.js defaults: 14.x `force-cache`, 15+ `no-store`). Use `server.cache: 'force-cache'` only where static caching/ISR is intended.
+- In your definition, set:
+  - `server: { cache, revalidate, tags }` → maps to Next.js `cache` and `next: { revalidate, tags }`
+  - `client: { revalidate, tags }` → client in‑memory cache policy
+- The stable cache key is derived from the definition (including params). ETag enables conditional fetches to skip payload.
+
+## Definition Example (required factory usage)
+
+```ts path=null start=null
+import { createNexusDefinition } from "next-nexus";
+
+export const createApiDefinition = createNexusDefinition({
+  baseURL: "https://api.example.com",
+  retry: { count: 1, delay: 1 },
+  timeout: 5,
+});
+
+export const postsDefinition = {
+  list: createApiDefinition<Post[]>({
+    method: "GET",
+    endpoint: "/posts",
+    server: { cache: "force-cache", revalidate: 120, tags: ["posts"] },
+    client: { revalidate: 120, tags: ["posts"] },
+  }),
+};
+```
+
+## Revalidating after writes
+
+- Client cache: `revalidateClientTags(['posts'])`
+- Server cache: `await revalidateServerTags(['posts'])` inside a server action/handler
+
+## Tips
+
+- Prefer broadly-scoped tags (e.g., `['posts']`) and optionally add fine‑grained ones (e.g., `['post:123']`).
+- `revalidate` controls staleness windows; CDN TTL is separate.
+- ETag + hydration minimizes network transfer when data is unchanged.
+
+See also: [Revalidation](/en/api/revalidation), [Definitions](/en/api/definitions).

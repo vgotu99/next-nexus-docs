@@ -1,0 +1,45 @@
+---
+title: Lifecycle
+description: A 2‑minute overview of next‑nexus from server fetch to client hydration, cache, and revalidation.
+---
+
+# Lifecycle
+
+Quick mental model of how data flows through next‑nexus.
+
+> Prerequisites: use factory definitions only and wrap your app with NexusProvider. See /en/api/definitions and /en/api/nexus-provider.
+
+## At a glance
+1) Define endpoints with factories (base key comes from definition).
+2) Server (RSC) renders and calls `nexus(...)` where needed; response headers and payload are collected.
+3) Hydration: `NexusProvider` serializes minimal entries to the client.
+4) Client mounts and `NexusProvider` restores entries.
+5) Read data: on the server use `nexus(...)`; on the client use `useNexusQuery`.
+6) Write data: `useNexusMutation`, `useNexusAction`, or `useNexusFormAction`; then revalidate via tags.
+7) Cache, `revalidate`, and tags map directly to Next.js request cache and ISR.
+8) Errors are normalized; detect with `isNexusError`.
+9) Debugging can print request/cache events in dev.
+
+## One diagram
+```text path=null start=null
+Route/navigation
+   ↓
+Server RSC render ──▶ nexus(def, opts) ──▶ collect {data, etag, headers}
+   ↓                                     \
+Hydration payload ◀─────────────────────── restore on client
+   ↓
+Client render ──▶ useNexusQuery(...) ──▶ cache read/write, optional revalidate/tag
+   ↓
+Mutations/Actions ──▶ revalidate tags ──▶ re-fetch where subscribed
+```
+
+## What runs where
+- Server: read inbound headers, perform `nexus(...)` in RSC, collect hydration entries.
+- Client: restore hydration, run hooks, optionally access cached response headers.
+
+## Next
+- Start with Reading Data → [/en/core-concepts/reading-data](/en/core-concepts/reading-data)
+- Then Writing Data → [/en/core-concepts/writing-data](/en/core-concepts/writing-data)
+
+See also deep dives: Automatic Hydration, RSC Request Interception, Cache Keys/Tags/TTL, ETag Logic, Interceptors.
+

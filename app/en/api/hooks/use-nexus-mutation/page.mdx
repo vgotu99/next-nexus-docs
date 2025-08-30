@@ -1,0 +1,92 @@
+---
+title: useNexusMutation
+description: Client-side hook for create/update/delete operations with lifecycle callbacks.
+---
+
+# useNexusMutation
+
+Import:
+
+```ts path=null start=null
+import { useNexusMutation } from 'next-nexus/client'
+```
+
+## Signature
+```ts path=null start=null
+useNexusMutation<TContext = unknown, TError = Error, TData = unknown, TVariables = unknown>(
+  factory: (variables: TVariables) => NexusDefinition<TData>,
+  options?: {
+    route?: string
+    onStart?: (variables: TVariables) => TContext | Promise<TContext>
+    onSuccess?: (data: TData, variables: TVariables, context: TContext | undefined) => void | Promise<void>
+    onError?: (error: TError, variables: TVariables, context: TContext | undefined) => void | Promise<void>
+    onSettled?: (data: TData | undefined, error: TError | null, variables: TVariables, context: TContext | undefined) => void | Promise<void>
+  }
+): {
+  data: TData | undefined
+  headers: Headers | undefined
+  error: TError | null
+  isPending: boolean
+  isSuccess: boolean
+  isError: boolean
+  mutate: (variables: TVariables) => void
+  mutateAsync: (variables: TVariables) => Promise<TData>
+  reset: () => void
+}
+```
+
+## Notes
+- Signature: pass a factory function `(variables) => NexusDefinition`.
+- Accepts mutation definitions (POST/PUT/PATCH/DELETE).
+- Prevents concurrent in-flight mutation via an internal guard (second call throws until the first settles).
+- Lifecycle callbacks for UX hooks and side effects.
+- `route` allows proxying through a Next.js Route Handler.
+  - When `route` is provided, the runtime sets `baseURL` to '' and uses the `route` as the effective endpoint. 
+
+## Examples
+
+### Basic (factory + variables)
+```tsx path=null start=null
+'use client'
+import { useNexusMutation, revalidateClientTags } from 'next-nexus/client'
+import { productDefinition } from '@/api/productDefinition'
+
+export function LikeButton({ id }: { id: string }) {
+  const { mutate, isPending } = useNexusMutation(
+    (productId: string) => productDefinition.like(productId),
+    {
+      onSuccess: async () => {
+        // Client cache
+        revalidateClientTags(['products'])
+        // If using a server action wrapper, also call revalidateServerTags there
+      },
+    }
+  )
+
+  return (
+    <button onClick={() => mutate(id)} disabled={isPending}>
+      {isPending ? 'Liking…' : 'Like'}
+    </button>
+  )
+}
+```
+
+### With route proxy
+```tsx path=null start=null
+'use client'
+import { useNexusMutation } from 'next-nexus/client'
+import { productDefinition } from '@/api/productDefinition'
+
+export function Save({ id, name }: { id: string; name: string }) {
+  const { mutate, isPending } = useNexusMutation(
+    (input: { id: string; name: string }) => productDefinition.like(id, name),
+    { route: '/api/internal/save' }
+  )
+  return <button onClick={() => mutate({ id, name })} disabled={isPending}>Save</button>
+}
+```
+
+### Concurrency guard
+- A second `mutate` while one is pending will throw. Disable UI or check `isPending` before calling.
+
+See also: Revalidation best practices.

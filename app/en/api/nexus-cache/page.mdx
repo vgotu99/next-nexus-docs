@@ -1,0 +1,61 @@
+---
+title: nexusCache
+description: Direct client-side cache access for advanced use cases.
+---
+
+# nexusCache
+
+```ts path=null start=null
+import { nexusCache } from "next-nexus/client";
+import { productDefinition } from "@/api/productDefinition";
+
+const cache = nexusCache(productDefinition.list);
+
+const current = cache.get();
+cache.set((prev) => (prev ? [...prev] : prev));
+cache.invalidate(); // mark stale
+const unsubscribe = cache.subscribe((data) => {
+  /* react to changes */
+});
+
+// later
+unsubscribe();
+```
+
+> Limitations
+> - GET-only. Calling with a non-GET definition throws: "nexusCache only supports GET definitions".
+> - Prefer tag revalidation for broad updates; `nexusCache` writes are for advanced cases like optimistic UI.
+
+## Optimistic update pattern
+```tsx path=null start=null
+'use client'
+import { useNexusMutation } from 'next-nexus/client'
+import { nexusCache } from 'next-nexus/client'
+import { todosDefinition } from '@/definitions'
+
+export function AddTodo() {
+  const listCache = nexusCache(todosDefinition.list)
+  const { mutate, isPending } = useNexusMutation(
+    (input: { title: string }) => todosDefinition.create(input),
+    {
+      onStart: (input) => {
+        listCache.set((prev) => (prev ? [{ id: '__temp__', title: input.title }, ...prev] : prev))
+      },
+      onError: () => {
+        // rollback by invalidating or removing temp item
+        listCache.invalidate()
+      },
+    }
+  )
+  return <button onClick={() => mutate({ title: 'New' })} disabled={isPending}>Add</button>
+}
+```
+
+## API
+
+- get(): T | undefined
+- set(updater: (old: T | undefined) => T): void
+- remove(): void
+- invalidate(): void
+- isStale(): boolean
+- subscribe(fn: (data: T | undefined) => void): () => void

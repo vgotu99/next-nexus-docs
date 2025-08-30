@@ -1,0 +1,104 @@
+---
+title: Writing Data
+description: Mutations, actions, and form actions with tag revalidation in a nutshell.
+---
+
+# Writing Data
+
+Choose the right way to change data and keep views in sync.
+
+## Quick chooser
+- useNexusMutation — client‑initiated API calls with full control.
+- useNexusAction — wrap a server action when a server round‑trip is preferable.
+- useNexusFormAction — HTML form + server action ergonomics.
+
+Revalidation:
+- Client cache: `revalidateClientTags(['tag'])` (client)
+- Server cache (ISR): `await revalidateServerTags(['tag'])` (server)
+
+## Mutation (client)
+```tsx path=null start=null
+'use client'
+import { useNexusMutation, revalidateClientTags } from 'next-nexus/client'
+import { todosDefinition } from '@/definitions'
+
+export function AddTodo() {
+  // Pass a factory: (variables) => NexusDefinition
+  const { mutate, isPending } = useNexusMutation(
+    (input: { title: string }) => todosDefinition.create(input),
+    {
+      onSuccess: () => {
+        // revalidate lists tagged with "todos" on the client
+        revalidateClientTags(['todos'])
+      },
+    }
+  )
+
+  return (
+    <button onClick={() => mutate({ title: 'New' })} disabled={isPending}>
+      Add
+    </button>
+  )
+}
+```
+
+## Server Action
+```tsx path=null start=null
+'use client'
+import { useNexusAction, revalidateClientTags } from 'next-nexus/client'
+import { revalidateServerTags } from 'next-nexus/server'
+
+export default function Form() {
+  const action = useNexusAction(async (title: string) => {
+    'use server'
+    // perform your write (e.g., call your Route Handler / DB)
+    // ...
+    await revalidateServerTags(['todos'])
+    return { ok: true }
+  }, {
+    onSuccess: () => revalidateClientTags(['todos']),
+  })
+
+  return (
+    <form action={action}>
+      <input name="title" />
+      <button type="submit">Add</button>
+    </form>
+  )
+}
+```
+
+## Form Action
+```tsx path=null start=null
+'use client'
+import { useNexusFormAction, revalidateClientTags } from 'next-nexus/client'
+import { revalidateServerTags } from 'next-nexus/server'
+
+export default function Form() {
+  const { formAction, isPending } = useNexusFormAction(async (formData: FormData) => {
+    'use server'
+    const title = String(formData.get('title') ?? '')
+    // perform your write
+    // ...
+    await revalidateServerTags(['todos'])
+    return { ok: true }
+  }, {
+    onSuccess: () => revalidateClientTags(['todos']),
+  })
+
+  return (
+    <form action={formAction}>
+      <input name="title" />
+      <button type="submit" disabled={isPending}>Add</button>
+    </form>
+  )
+}
+```
+
+## Tips
+- Prefer tags over manual cache writes; tags make re‑fetching deterministic across pages/components.
+- Collocate revalidation with the mutation/action using `revalidateClientTags([...])` and (optionally) `revalidateServerTags([...])` inside the server action.
+- For optimistic UI, use local component state; the next fetch will reconcile.
+
+See also: [useNexusMutation](/en/api/hooks/use-nexus-mutation), [useNexusAction](/en/api/hooks/use-nexus-action), [useNexusFormAction](/en/api/hooks/use-nexus-form-action), [Revalidation](/en/api/revalidation).
+

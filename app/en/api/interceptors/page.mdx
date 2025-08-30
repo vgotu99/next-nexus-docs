@@ -1,0 +1,43 @@
+---
+title: Interceptors
+description: Extend request/response lifecycles with named interceptors.
+---
+
+# Interceptors
+
+## Registering
+
+```ts path=null start=null
+import { interceptors } from "next-nexus";
+
+interceptors.request.use("auth", async (config) => {
+  const headers = new Headers(config.headers);
+  headers.set("authorization", "Bearer <token>");
+  return { ...config, headers };
+});
+
+interceptors.response.use("timing", async (res) => res);
+```
+
+## Using per definition (factory usage)
+
+```ts path=null start=null
+import { createNexusDefinition } from 'next-nexus'
+
+export const createApiDefinition = createNexusDefinition({
+  baseURL: 'https://api.example.com',
+})
+
+const definition = createApiDefinition<{ items: unknown[] }>({
+  method: 'GET',
+  endpoint: '/protected',
+  interceptors: ['auth', 'timing'],
+})
+```
+
+## Notes
+
+- Execution order: named interceptors run in registration order.
+- Scope: keep server-only logic server-side; client-only code should avoid server imports.
+- Errors: throwing in an interceptor fails the request and propagates a `NexusError`.
+- Names serialize safely across RSC boundaries.

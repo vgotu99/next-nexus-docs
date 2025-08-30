@@ -1,0 +1,51 @@
+---
+title: Revalidation
+description: Tag-based revalidation for server/client caches.
+---
+
+# Revalidation
+
+## Client
+```ts path=null start=null
+import { revalidateClientTags } from 'next-nexus/client'
+revalidateClientTags(['products'])
+```
+
+## Server
+```ts path=null start=null
+'use server'
+import { revalidateServerTags } from 'next-nexus/server'
+await revalidateServerTags(['products', 'product:123'])
+```
+
+## Notes
+- Tags are normalized (trimmed, unique, sorted). Empty/invalid tags throw.
+- Server uses `revalidateTag` under the hood; dev logs provide insight when enabled.
+
+## Best practices
+- Use broad tags (e.g., `['posts']`) and add fine-grained tags when needed (e.g., `['post:123']`).
+- Call `revalidateServerTags` in server actions/handlers that modify server-rendered content.
+- Pair with `revalidateClientTags` in client `onSuccess` callbacks to update interactive views immediately.
+
+## Pitfalls
+- Avoid empty tags or whitespace-only tags (throws).
+- Without consistent tagging on definitions, revalidation will not target the intended entries.
+
+## Combined example
+```tsx path=null start=null
+'use client'
+import { revalidateClientTags } from 'next-nexus/client'
+import { revalidateServerTags } from 'next-nexus/server'
+
+export function Save({ id }: { id: string }) {
+  async function action() {
+    'use server'
+    // write...
+    await revalidateServerTags(['posts', `post:${id}`])
+  }
+
+  // in client onSuccess
+  const onSuccess = () => revalidateClientTags(['posts', `post:${id}`])
+}
+```
+

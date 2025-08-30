@@ -1,0 +1,120 @@
+---
+title: useNexusQuery
+description: Client-side hook for GET queries with hydration-aware behavior.
+---
+
+# useNexusQuery
+
+Import:
+
+```ts path=null start=null
+import { useNexusQuery } from "next-nexus/client";
+```
+
+## Signature
+
+```ts path=null start=null
+useNexusQuery<TData, TSelectedData = TData>(
+  definition: NexusDefinition<TData>,
+  options?: {
+    route?: string
+    enabled?: boolean
+    select?: (data: TData) => TSelectedData
+    refetchOnWindowFocus?: boolean
+    refetchOnMount?: boolean
+  }
+): {
+  data: TSelectedData | undefined
+  headers: Headers | undefined
+  error: Error | null
+  isPending: boolean
+  isSuccess: boolean
+  isError: boolean
+  refetch: () => Promise<void>
+}
+```
+
+## Notes
+
+- GET-only: throws if a non-GET definition is passed.
+- Hydration-aware: renders instantly if server provided hydrated data.
+- Subscribes to the client cache and re-renders on updates.
+- `route` lets you proxy through an internal Next.js Route Handler.
+  - When `route` is provided, the runtime sets `baseURL` to '' and uses the `route` string as the effective endpoint for the request.
+
+## Examples
+
+### Basic
+
+```tsx path=null start=null
+"use client";
+import { useNexusQuery } from "next-nexus/client";
+import { productDefinition } from "@/api/productDefinition";
+
+export function ProductListClient() {
+  const { data, isPending } = useNexusQuery(productDefinition.list);
+  const products = data ?? [];
+  if (!data && isPending) return <div>Loading...</div>;
+  return (
+    <ul>
+      {products.map((p) => (
+        <li key={p.id}>{p.name}</li>
+      ))}
+    </ul>
+  );
+}
+```
+
+### Route override (proxy)
+
+```tsx path=null start=null
+"use client";
+import { useNexusQuery } from "next-nexus/client";
+import { productDefinition } from "@/api/productDefinition";
+
+export function ProductListViaRoute() {
+  const { data } = useNexusQuery(productDefinition.list, {
+    route: "/api/products",
+  });
+  return <div>{data?.length ?? 0} items</div>;
+}
+```
+
+### Select
+
+```tsx path=null start=null
+"use client";
+import { useNexusQuery } from "next-nexus/client";
+import { statsDefinition } from "@/api/statsDefinition";
+
+export function CountOnly() {
+  const { data: count } = useNexusQuery(statsDefinition.summary, {
+    select: (s) => s.total,
+  });
+  return <div>Total: {count ?? 0}</div>;
+}
+```
+
+### Reading cached headers
+
+```tsx path=null start=null
+"use client";
+import { useNexusQuery } from "next-nexus/client";
+import { statsDefinition } from "@/api/statsDefinition";
+
+export function WithTotal() {
+  const { data, headers } = useNexusQuery(statsDefinition.listWithHeaders);
+  const total = headers?.get("x-total-count");
+  return (
+    <div>
+      Items: {data?.length ?? 0} / Total: {total ?? "n/a"}
+    </div>
+  );
+}
+```
+
+### Refetch behavior
+
+- `refetchOnWindowFocus`: refetch on focus (default: true)
+- `refetchOnMount`: refetch on mount if no fresh cache (default: true)
+- `enabled`: set to false to disable fetching and subscriptions
