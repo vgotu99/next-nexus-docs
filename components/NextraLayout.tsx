@@ -14,7 +14,7 @@ const NextraLayout = async ({
   return (
     <Layout
       pageMap={pageMap}
-      navbar={<NextraNavbar locale={locale} />}
+      navbar={<NextraNavbar key={locale} locale={locale} />}
       docsRepositoryBase="https://github.com/vgotu99/next-nexus"
       i18n={[
         { locale: "en", name: "English" },
