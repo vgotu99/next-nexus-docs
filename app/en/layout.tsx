@@ -2,10 +2,6 @@ import NextraLayout from "@/components/NextraLayout";
 import { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: {
-    default: "next-nexus",
-    template: "%s | next-nexus",
-  },
   description: "The intelligent data layer for Next.js",
 };
 
