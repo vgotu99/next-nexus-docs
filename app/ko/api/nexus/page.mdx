@@ -1,0 +1,118 @@
+---
+title: nexus
+description: 하이드레이션/위임/재시도/타임아웃/인터셉터를 포함한 서버 데이터 패칭.
+---
+
+# nexus
+
+임포트:
+```ts path=null start=null
+import { nexus, createNexusDefinition, NexusProvider } from 'next-nexus'
+```
+
+## 시그니처
+```ts path=null start=null
+nexus<T>(definition: NexusDefinition<T>): Promise<NexusResponse<T>>
+```
+
+## Definition 옵션
+- method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'
+- endpoint: 문자열 (예: '/products')
+- baseURL?: 문자열 (endpoint 앞에 붙음)
+- headers?: HeadersInit (병합)
+- server?: `{ cache?: RequestCache; revalidate?: number; tags?: string[] }`
+- client?: `{ revalidate?: number; tags?: string[]; cachedHeaders?: string[] }`
+- timeout?: number (초)
+- retry?: `{ count: number; delay?: number }`
+- interceptors?: string[] (전역 등록 이름)
+
+### 기본값
+- 캐시: `server.cache`를 생략하면 next-nexus는 기본값으로 `no-store`를 사용합니다(Next.js 14의 기본은 `force-cache`, 15+는 `no-store`). 정적 캐싱/ISR이 필요한 경우에만 `server.cache: 'force-cache'`를 명시하세요.
+
+## 동작
+
+1. 요청/응답 인터셉터
+   - 이름으로 등록된 인터셉터가 등록 순서대로 실행됩니다(서버/클라이언트 각각의 로직에 따라).
+2. 재시도 & 타임아웃
+   - 중단 가능한 타임아웃을 사용하고, 타임아웃/서버 오류/레이트리밋 시 재시도합니다.
+3. 하이드레이션(서버, GET + client 옵션)
+   - 응답 데이터/태그/TTL/선택한 헤더를 요청 단위로 수집합니다.
+   - HTML에 주입한 `window.__NEXUS_PAYLOAD__`로 전달되고 클라이언트에서 복원됩니다.
+4. ETag 기반 TTL 연장
+   - 클라이언트 캐시가 stale이고 서버 ETag가 클라이언트 ETag와 같다면 서버는 해당 키를 not-modified로 표시하고, 클라이언트는 재다운로드 없이 TTL만 연장합니다.
+5. 렌더링 위임(`<NexusSuspense>`)
+   - 클라이언트에 일치하는 GET Definition의 신선한 캐시가 있고 위임이 활성화되어 있으면, 서버는 해당 서브트리 렌더링을 건너뛸 수 있습니다.
+6. Next.js 캐시 연동
+   - `server.revalidate/tags`는 Next의 `next:{ revalidate, tags }` 및 `cache` 옵션과 1:1로 매핑됩니다.
+
+## 에러 처리
+- 라이브러리에서 발생한 에러는 `NexusError`입니다. `isNexusError`로 식별하세요.
+
+```ts path=null start=null
+import { isNexusError } from "next-nexus/errors";
+
+try {
+  const res = await nexus(productDefinition.list);
+} catch (e) {
+  if (isNexusError(e)) {
+    // e.code, e.response?.status, e.message
+  }
+}
+```
+
+## 예제
+
+### 기본 GET(팩토리 함수 사용)
+
+```ts path=null start=null
+import { createNexusDefinition } from 'next-nexus'
+
+export interface Product {
+  id: string
+  name: string
+}
+
+export const createApiDefinition = createNexusDefinition({
+  baseURL: 'https://api.example.com',
+  retry: { count: 1, delay: 1 },
+  timeout: 5,
+})
+
+export const productDefinition = {
+  list: createApiDefinition<Product[]>({
+    method: 'GET',
+    endpoint: '/products',
+    server: { tags: ['products'], revalidate: 1800 },
+    client: { tags: ['products'], revalidate: 300, cachedHeaders: ['x-total-count'] },
+  }),
+}
+```
+
+### POST(팩토리 사용)
+
+```ts path=null start=null
+const like = (id: string) =>
+  createApiDefinition<{ success: boolean }>({
+    method: 'POST',
+    endpoint: `/products/${id}/like`,
+  })
+```
+
+### 인터셉터와 함께
+
+```ts path=null start=null
+import { interceptors } from "next-nexus";
+
+interceptors.request.use("auth", async (config) => {
+  const headers = new Headers(config.headers);
+  headers.set("authorization", "Bearer <token>");
+  return { ...config, headers };
+});
+
+const protectedList = createNexusDefinition<{ items: unknown[] }>({
+  method: "GET",
+  endpoint: "/api/protected",
+  interceptors: ["auth"],
+});
+```
+

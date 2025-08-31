@@ -1,0 +1,100 @@
+---
+title: useNexusQuery
+description: 하이드레이션을 인지하는 GET 전용 클라이언트 훅.
+---
+
+# useNexusQuery
+
+임포트:
+```ts path=null start=null
+import { useNexusQuery } from 'next-nexus/client'
+```
+
+## 시그니처
+```ts path=null start=null
+useNexusQuery<TData, TSelectedData = TData>(
+  definition: NexusDefinition<TData>,
+  options?: {
+    route?: string
+    enabled?: boolean
+    select?: (data: TData) => TSelectedData
+    refetchOnWindowFocus?: boolean
+    refetchOnMount?: boolean
+  }
+): {
+  data: TSelectedData | undefined
+  headers: Headers | undefined
+  error: Error | null
+  isPending: boolean
+  isSuccess: boolean
+  isError: boolean
+  refetch: () => Promise<void>
+}
+```
+
+## 특징
+- GET 전용(아닌 경우 예외 발생)
+- 서버 하이드레이션 결과를 즉시 활용
+- 클라이언트 캐시 구독으로 실시간 동기화
+- `route` 옵션으로 Next.js Route Handler를 통한 프록시 지원
+  - `route`가 지정되면 런타임은 `baseURL`을 빈 문자열로 강제하고, 해당 `route` 문자열을 유효 endpoint로 사용합니다.
+
+## 예제
+
+### 기본
+```tsx path=null start=null
+'use client'
+import { useNexusQuery } from 'next-nexus/client'
+import { productDefinition } from '@/api/productDefinition'
+
+export function ProductListClient() {
+  const { data, isPending } = useNexusQuery(productDefinition.list)
+  const products = data ?? []
+  if (!data && isPending) return <div>로딩 중...</div>
+  return <ul>{products.map(p => (<li key={p.id}>{p.name}</li>))}</ul>
+}
+```
+
+### 라우트 프록시(route)
+```tsx path=null start=null
+'use client'
+import { useNexusQuery } from 'next-nexus/client'
+import { productDefinition } from '@/api/productDefinition'
+
+export function ProductListViaRoute() {
+  const { data } = useNexusQuery(productDefinition.list, { route: '/api/products' })
+  return <div>{data?.length ?? 0} items</div>
+}
+```
+
+### select 사용
+```tsx path=null start=null
+'use client'
+import { useNexusQuery } from 'next-nexus/client'
+import { statsDefinition } from '@/api/statsDefinition'
+
+export function CountOnly() {
+  const { data: count } = useNexusQuery(statsDefinition.summary, {
+    select: (s) => s.total,
+  })
+  return <div>Total: {count ?? 0}</div>
+}
+```
+
+### 캐시된 헤더 읽기
+```tsx path=null start=null
+'use client'
+import { useNexusQuery } from 'next-nexus/client'
+import { statsDefinition } from '@/api/statsDefinition'
+
+export function WithTotal() {
+  const { data, headers } = useNexusQuery(statsDefinition.listWithHeaders)
+  const total = headers?.get('x-total-count')
+  return <div>Items: {data?.length ?? 0} / Total: {total ?? 'n/a'}</div>
+}
+```
+
+### 재요청 동작
+- `refetchOnWindowFocus`: 창 포커스 시 재요청(기본 true)
+- `refetchOnMount`: 마운트 시 신선한 캐시가 없으면 재요청(기본 true)
+- `enabled`: false로 비활성화 시 요청/구독 중단

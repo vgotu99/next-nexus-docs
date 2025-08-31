@@ -1,0 +1,51 @@
+---
+title: Revalidation
+description: 서버/클라이언트 캐시에 대한 태그 기반 재검증.
+---
+
+# Revalidation
+
+## 클라이언트
+```ts path=null start=null
+import { revalidateClientTags } from 'next-nexus/client'
+revalidateClientTags(['products'])
+```
+
+## 서버
+```ts path=null start=null
+'use server'
+import { revalidateServerTags } from 'next-nexus/server'
+await revalidateServerTags(['products', 'product:123'])
+```
+
+## 참고
+- 태그는 정규화됩니다(공백 제거/중복 제거/정렬). 빈 태그나 잘못된 태그는 예외를 발생시킵니다.
+- 서버는 내부적으로 `revalidateTag`를 호출하며, 개발 모드에서는 로그가 출력됩니다.
+
+## 베스트 프랙티스
+- 넓은 범위 태그(예: `['posts']`)를 기본으로, 필요 시 세부 태그(예: `['post:123']`)를 함께 사용.
+- 서버에서 콘텐츠를 변경했다면 서버 액션/핸들러에서 `revalidateServerTags` 호출.
+- 클라이언트 UX를 즉시 갱신하려면 onSuccess에서 `revalidateClientTags`를 병행.
+
+## 주의점
+- 빈 태그나 공백만 있는 태그는 예외 발생.
+- 정의에 태그를 일관되게 부여하지 않으면 재검증이 의도한 엔트리를 찾지 못합니다.
+
+## 조합 예시
+```tsx path=null start=null
+'use client'
+import { revalidateClientTags } from 'next-nexus/client'
+import { revalidateServerTags } from 'next-nexus/server'
+
+export function Save({ id }: { id: string }) {
+  async function action() {
+    'use server'
+    // 쓰기...
+    await revalidateServerTags(['posts', `post:${id}`])
+  }
+
+  // 클라이언트 onSuccess
+  const onSuccess = () => revalidateClientTags(['posts', `post:${id}`])
+}
+```
+

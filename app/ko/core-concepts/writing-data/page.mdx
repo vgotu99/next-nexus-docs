@@ -1,0 +1,103 @@
+---
+title: 데이터 쓰기
+description: 뮤테이션, 서버 액션, 폼 액션을 한눈에 요약하고 태그 재검증으로 동기화.
+---
+
+# 데이터 쓰기
+
+상황에 맞는 쓰기 방식을 선택하고, 태그 재검증으로 일관되게 갱신하세요.
+
+## 빠른 선택 가이드
+- useNexusMutation — 클라이언트에서 직접 호출이 필요할 때.
+- useNexusAction — 서버 액션 래퍼가 더 적합할 때.
+- useNexusFormAction — HTML form + 서버 액션 조합이 편할 때.
+
+재검증:
+- 클라이언트 캐시: `revalidateClientTags(['tag'])`
+- 서버 캐시(ISR): `await revalidateServerTags(['tag'])`
+
+## Mutation(클라이언트)
+```tsx path=null start=null
+'use client'
+import { useNexusMutation, revalidateClientTags } from 'next-nexus/client'
+import { todosDefinition } from '@/definitions'
+
+export function AddTodo() {
+  // 팩토리 함수(variables => NexusDefinition)를 전달
+  const { mutate, isPending } = useNexusMutation(
+(input: { title: string }) => todosDefinition.create(input),
+    {
+      onSuccess: () => {
+        revalidateClientTags(['todos'])
+      },
+    }
+  )
+
+  return (
+    <button onClick={() => mutate({ title: 'New' })} disabled={isPending}>
+      Add
+    </button>
+  )
+}
+```
+
+## 서버 액션
+```tsx path=null start=null
+'use client'
+import { useNexusAction, revalidateClientTags } from 'next-nexus/client'
+import { revalidateServerTags } from 'next-nexus/server'
+
+export default function Form() {
+  const action = useNexusAction(async (title: string) => {
+    'use server'
+    // 쓰기 수행 (Route Handler/DB 등)
+    // ...
+    await revalidateServerTags(['todos'])
+    return { ok: true }
+  }, {
+    onSuccess: () => revalidateClientTags(['todos']),
+  })
+
+  return (
+    <form action={action}>
+      <input name="title" />
+      <button type="submit">Add</button>
+    </form>
+  )
+}
+```
+
+## 폼 액션
+```tsx path=null start=null
+'use client'
+import { useNexusFormAction, revalidateClientTags } from 'next-nexus/client'
+import { revalidateServerTags } from 'next-nexus/server'
+
+export default function Form() {
+  const { formAction, isPending } = useNexusFormAction(async (formData: FormData) => {
+    'use server'
+    const title = String(formData.get('title') ?? '')
+    // 쓰기 수행
+    // ...
+    await revalidateServerTags(['todos'])
+    return { ok: true }
+  }, {
+    onSuccess: () => revalidateClientTags(['todos']),
+  })
+
+  return (
+    <form action={formAction}>
+      <input name="title" />
+      <button type="submit" disabled={isPending}>Add</button>
+    </form>
+  )
+}
+```
+
+## 팁
+- `nexusCache`를 이용한 수동 캐시 조작보다는 **태그 기반 재검증을 사용하는 것이 좋습니다.** 여러 페이지와 컴포넌트에 걸쳐 데이터 재요청이 **예측 가능하게 동작**하기 때문입니다.
+- `onSuccess`에서 `revalidateClientTags([...])`를 호출하고, 서버 액션 내부에서 `revalidateServerTags([...])`를 병행하세요.
+- 낙관적 UI는 로컬 상태로 처리하고, 다음 페치에서 일관되게 반영됩니다.
+
+참고: [useNexusMutation](/ko/api/hooks/use-nexus-mutation), [useNexusAction](/ko/api/hooks/use-nexus-action), [useNexusFormAction](/ko/api/hooks/use-nexus-form-action), [Revalidation](/ko/api/revalidation).
+

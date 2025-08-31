@@ -1,0 +1,42 @@
+---
+title: Interceptors
+description: 요청/응답 라이프사이클을 확장하는 이름 기반 인터셉터.
+---
+
+# Interceptors
+
+## 등록
+
+```ts path=null start=null
+import { interceptors } from "next-nexus";
+
+interceptors.request.use("auth", async (config) => {
+  const headers = new Headers(config.headers);
+  headers.set("authorization", "Bearer <token>");
+  return { ...config, headers };
+});
+
+interceptors.response.use("timing", async (res) => res);
+```
+
+## Definition별 적용(팩토리 함수 사용)
+
+```ts path=null start=null
+import { createNexusDefinition } from "next-nexus";
+
+export const createApiDefinition = createNexusDefinition({
+  baseURL: 'https://api.example.com',
+});
+
+const definition = createApiDefinition<{ items: unknown[] }>({
+  method: "GET",
+  endpoint: "/protected",
+  interceptors: ["auth", "timing"],
+});
+```
+
+## 참고
+- 실행 순서: 등록된 순서대로 실행됩니다.
+- 범위: 서버 전용 로직은 서버에, 클라이언트 전용 로직은 클라이언트에 유지하세요.
+- 오류: 인터셉터에서 throw하면 요청이 실패하며 `NexusError`로 전파됩니다.
+- 이름 직렬화: 인터셉터 이름은 RSC 경계를 안전하게 넘길 수 있도록 직렬화됩니다.

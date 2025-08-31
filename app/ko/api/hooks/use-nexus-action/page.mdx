@@ -1,0 +1,34 @@
+---
+title: useNexusAction
+description: 서버 액션 호출을 위한 클라이언트 헬퍼.
+---
+
+# useNexusAction
+
+임포트:
+```ts path=null start=null
+import { useNexusAction } from 'next-nexus/client'
+```
+
+## 개요
+- 서버 액션을 래핑해 `isPending`/`result`/`error` 상태를 관리합니다.
+- `execute`/`executeAsync`를 제공합니다.
+
+## 예제
+```tsx path=null start=null
+'use client'
+import { useNexusAction } from 'next-nexus/client'
+
+export function UpdateProductName({ productId }: { productId: string }) {
+  const { execute, isPending } = useNexusAction(async (id: string, name: string) => {
+    'use server'
+    return { success: true }
+  })
+
+  return (
+    <button onClick={() => execute(productId, 'New Name')} disabled={isPending}>
+      {isPending ? 'Updating…' : 'Update Name'}
+    </button>
+  )
+}
+```

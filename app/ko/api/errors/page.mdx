@@ -1,0 +1,34 @@
+---
+title: 오류 처리
+description: isNexusError로 오류를 식별하고 구조화된 코드로 처리하기.
+---
+
+# 오류 처리
+
+임포트:
+```ts path=null start=null
+import { isNexusError } from 'next-nexus/errors'
+```
+
+## 사용 패턴
+```ts path=null start=null
+try {
+  const res = await nexus(def)
+} catch (e) {
+  if (isNexusError(e)) {
+    console.error(e.code, e.response?.status, e.response?.data, e.message)
+  } else {
+    console.error('Unknown error', e)
+  }
+}
+```
+
+## 대표 에러 코드(일부)
+- NETWORK_ERROR, TIMEOUT_ERROR, CANCELED_ERROR
+- BAD_RESPONSE_ERROR, INVALID_URL_ERROR
+- BAD_REQUEST_ERROR, UNAUTHORIZED_ERROR, FORBIDDEN_ERROR, NOT_FOUND_ERROR, RATE_LIMITED_ERROR
+- SERVER_ERROR
+- CACHE_KEY_GENERATION_ERROR, CACHE_STORAGE_ERROR
+- INVALID_CONFIG_ERROR, MISSING_REQUIRED_FIELD, TYPE_MISMATCH_ERROR, INVALID_DEFINITION_ERROR, UNSUPPORTED_METHOD_ERROR
+- ETAG_PARSING_ERROR, UNKNOWN_ERROR
+

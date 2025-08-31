@@ -1,0 +1,36 @@
+---
+title: useNexusFormAction
+description: 서버 액션을 HTML 폼과 통합하는 클라이언트 헬퍼.
+---
+
+# useNexusFormAction
+
+임포트:
+```ts path=null start=null
+import { useNexusFormAction } from 'next-nexus/client'
+```
+
+## 개요
+- `<form action={formAction}>` 패턴으로 서버 액션과 연동됩니다.
+- `isPending`, `isSuccess`, `isError`, `result`, `error`, `reset` 제공.
+
+## 예제
+```tsx path=null start=null
+'use client'
+import { useNexusFormAction } from 'next-nexus/client'
+
+export default function ProductForm() {
+  const { formAction, isPending, isSuccess } = useNexusFormAction(async (formData: FormData) => {
+    'use server'
+    return { ok: true }
+  })
+
+  return (
+    <form action={formAction}>
+      <input name="name" />
+      <button type="submit" disabled={isPending}>저장</button>
+      {isSuccess && <div>저장되었습니다!</div>}
+    </form>
+  )
+}
+```

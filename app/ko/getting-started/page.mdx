@@ -1,0 +1,135 @@
+---
+title: 빠른 시작
+description: next-nexus 빠른 시작 가이드
+---
+
+# 빠른 시작
+
+## 설치
+
+```bash
+npm install next-nexus
+# 또는
+pnpm install next-nexus
+# 또는
+yarn add next-nexus
+```
+
+**필수 요구사항:** Next.js >= 14.2, React >= 18.2
+
+## `NexusProvider`로 앱 감싸기
+
+```tsx
+// app/layout.tsx
+import { NexusProvider } from 'next-nexus';
+
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  return (
+    <html lang='ko'>
+      <body>
+        <NexusProvider>{children}</NexusProvider>
+      </body>
+    </html>
+  );
+}
+```
+
+## API Definition 만들기
+
+```ts
+// src/api/productDefinition.ts
+import { createNexusDefinition } from 'next-nexus';
+
+export interface Product {
+  id: string;
+  name: string;
+}
+
+// 팩토리 함수(필수)
+export const createApiDefinition = createNexusDefinition({
+  baseURL: 'https://api.example.com',
+  retry: { count: 1, delay: 1 },
+  timeout: 5,
+});
+
+export const productDefinition = {
+  list: createApiDefinition<Product[]>({
+    method: 'GET',
+    endpoint: '/products',
+    server: {
+      tags: ['products'],
+      revalidate: 1800,
+    },
+    client: {
+      tags: ['products'],
+      revalidate: 300,
+      cachedHeaders: ['x-total-count'],
+    },
+  }),
+};
+```
+
+## 서버 컴포넌트에서 데이터 가져오기
+
+```tsx
+// app/products/page.tsx
+import { nexus } from 'next-nexus';
+import { productDefinition } from '@/api/productDefinition';
+
+const ProductsPage = async () => {
+  const res = await nexus(productDefinition.list);
+  const products = res.data ?? [];
+
+  return (
+    <ul>
+      {products.map(p => (
+        <li key={p.id}>{p.name}</li>
+      ))}
+    </ul>
+  );
+};
+
+export default ProductsPage;
+```
+
+## 클라이언트 컴포넌트에서 사용하기
+
+```tsx
+// components/ProductListClient.tsx
+'use client';
+
+import { useNexusQuery } from 'next-nexus/client';
+import { productDefinition } from '@/api/productDefinition';
+
+export function ProductListClient() {
+  const { data, isPending } = useNexusQuery(productDefinition.list);
+  const products = data ?? [];
+
+  if (isPending && !data) return <div>로딩 중...</div>;
+
+  return (
+    <ul>
+      {products.map(p => (
+        <li key={p.id}>{p.name}</li>
+      ))}
+    </ul>
+  );
+}
+```
+
+## 다음 단계
+
+- [핵심 개념](/ko/core-concepts) - 하이드레이션, 렌더링 위임, 캐싱 전략
+- [API 레퍼런스](/ko/api) - 훅/컴포넌트/유틸리티 전체 목록
+
+## 내비게이션
+- 설정: [NexusProvider](/ko/api/nexus-provider) → [Definitions](/ko/api/definitions)
+- 데이터 패칭: [nexus](/ko/api/nexus) → [useNexusQuery](/ko/api/hooks/use-nexus-query) / [useNexusMutation](/ko/api/hooks/use-nexus-mutation)
+- 공통 관심사: [Interceptors](/ko/api/interceptors) → [Revalidation](/ko/api/revalidation) → [nexusCache](/ko/api/nexus-cache)
+- 트러블슈팅: [디버깅](/ko/debugging) → [오류 처리](/ko/api/errors)
+
+> **축하합니다!** 🎉 next-nexus 설정을 성공적으로 완료했습니다. 이제 앱에 자동 캐싱과 하이드레이션이 포함된 지능형 데이터 관리 기능이 있습니다.

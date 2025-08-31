@@ -1,0 +1,60 @@
+---
+title: 데이터 읽기
+description: 서버 `nexus(...)`와 클라이언트 `useNexusQuery` 중 무엇을 쓸지, 빠른 패턴 요약.
+---
+
+# 데이터 읽기
+
+상황에 따라 서버/클라이언트 중 적절한 방식을 선택하세요.
+
+## 빠른 선택 가이드
+
+- 서버(RSC): 서버 컴포넌트에서 `nexus(def)` 호출
+- 클라이언트: 클라이언트 컴포넌트에서 `useNexusQuery(def)` 사용
+- **초기 페이지 로드나 SEO에 중요한 데이터**는 서버에서, **사용자 상호작용에 따라 변하는 데이터**는 클라이언트에서 읽는 것을 권장합니다.
+
+## 서버 읽기 (RSC)
+
+```ts path=null start=null
+import { nexus } from "next-nexus";
+import { usersDefinition } from "@/definitions";
+
+// Next.js 15+ (params가 비동기)
+export default async function Page({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  const { id } = await params;
+  const res = await nexus(usersDefinition.getById(id));
+  return <p>{res.data.id}</p>;
+}
+```
+
+> 참고: Next.js 버전에 맞춰 Page props 가이드를 따르세요.
+>
+> - Next.js 15+: `params`/`searchParams`가 Promise입니다. `const { id } = await params` 형태로 사용하세요.
+> - Next.js 14.x 이하: 기존처럼 동기 객체입니다. `params.id`를 바로 사용하세요.
+
+## 클라이언트 읽기 (hook)
+
+```tsx path=null start=null
+"use client";
+import { useNexusQuery } from "next-nexus/client";
+import { usersDefinition } from "@/definitions";
+
+export function UserPanel({ id }: { id: string }) {
+  // 팩토리 함수로 생성된 구체적인 GET Definition을 전달
+  const { data, error, isPending } = useNexusQuery(usersDefinition.getById(id));
+  if (isPending && !data) return <p>Loading…</p>;
+  if (error) return <p>Error</p>;
+  return <pre>{JSON.stringify(data, null, 2)}</pre>;
+}
+```
+
+## 팁
+
+- Definition(및 파라미터)이 안정적인 캐시 키를 결정합니다. 서버에서 읽은 데이터는 하이드레이션으로 재사용됩니다.
+- Next.js 캐싱과 매핑되는 값은 Definition의 `server.tags/revalidate`, `client.tags/revalidate`에 설정하세요.
+
+참고: [nexus](/ko/api/nexus), [useNexusQuery](/ko/api/hooks/use-nexus-query), [Definitions](/ko/api/definitions).

@@ -1,0 +1,50 @@
+---
+title: 캐싱 & 재검증
+description: 태그와 revalidate가 next‑nexus(클라이언트/서버) 및 Next.js ISR과 어떻게 매핑되는지.
+---
+
+# 캐싱 & 재검증
+
+next‑nexus는 Definition의 server/client 설정을 통해 태그·재검증을 다룹니다.
+
+## 기본
+
+- 기본값: `server.cache`를 생략하면 next‑nexus는 `no-store`를 사용합니다(Next.js 기본: 14.x는 `force-cache`, 15+는 `no-store`). 정적 캐싱/ISR이 필요한 경우에만 `server.cache: 'force-cache'`를 명시하세요.
+- Definition에서 설정:
+  - `server: { cache, revalidate, tags }` → Next.js `cache` 및 `next: { revalidate, tags }`로 매핑 (서버 캐시/ISR)
+  - `client: { revalidate, tags }` → 클라이언트 인메모리 캐시 정책
+- 안정적인 캐시 키는 Definition(파라미터 포함)에서 파생됩니다. ETag는 변경이 없을 때 페이로드 전송을 건너뜁니다.
+
+## Definition 예시(팩토리 함수 필수)
+
+```ts path=null start=null
+import { createNexusDefinition } from "next-nexus";
+
+export const createApiDefinition = createNexusDefinition({
+  baseURL: "https://api.example.com",
+  retry: { count: 1, delay: 1 },
+  timeout: 5,
+});
+
+export const postsDefinition = {
+  list: createApiDefinition<Post[]>({
+    method: "GET",
+    endpoint: "/posts",
+    server: { cache: "force-cache", revalidate: 120, tags: ["posts"] },
+    client: { revalidate: 120, tags: ["posts"] },
+  }),
+};
+```
+
+## 쓰기 이후 재검증
+
+- 클라이언트 캐시: `revalidateClientTags(['posts'])`
+- 서버 캐시(ISR): 서버 액션/핸들러 내부에서 `await revalidateServerTags(['posts'])`
+
+## 팁
+
+- 넓은 범위 태그(예: `['posts']`)를 기본으로, 필요하면 세부 태그(예: `['post:123']`)를 추가하세요.
+- `revalidate`는 오래됨(stale) 판단 시점을 제어하며, CDN TTL과는 별개입니다.
+- ETag + 하이드레이션으로 변경이 없으면 네트워크 전송을 최소화합니다.
+
+참고: [Revalidation](/ko/api/revalidation), [Definitions](/ko/api/definitions).

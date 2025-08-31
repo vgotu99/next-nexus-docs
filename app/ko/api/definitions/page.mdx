@@ -1,0 +1,126 @@
+---
+title: Definitions
+description: createNexusDefinition으로 일관된 요청 Definition을 작성합니다.
+---
+
+# Definitions
+
+`createNexusDefinition`은 서버/클라이언트가 함께 쓰는 예측 가능한 요청 Definition을 만듭니다.
+
+## 임포트
+
+```ts path=null start=null
+import { createNexusDefinition } from "next-nexus";
+```
+
+> 중요: 이 프로젝트에서는 Definition을 반드시 '팩토리'로만 생성합니다. `createNexusDefinition<T>({...})`를 직접 일회성으로 호출하는 방식은 허용하지 않습니다.
+
+## 공통 기본값(팩토리) 사용(필수)
+
+공통 옵션으로 팩토리를 만들고, 그 위에 도메인별 Definition을 만드세요.
+
+```ts path=null start=null
+export const createApiDefinition = createNexusDefinition({
+  baseURL: "https://api.example.com",
+  timeout: 5,
+  retry: { count: 1, delay: 1 },
+  headers: { "x-app": "docs" },
+});
+
+export const productDefinition = {
+  list: createApiDefinition<Product[]>({
+    method: "GET",
+    endpoint: "/products",
+    server: {
+      // next-nexus는 기본적으로 server.cache를 'no-store'로 둡니다. 정적 캐싱/ISR이 필요할 때만 'force-cache'를 명시하세요.
+      revalidate: 1800, // next: { revalidate: 1800 } 로 매핑
+      tags: ["products"], // next: { tags: ['products'] } 로 매핑
+    },
+    client: { tags: ["products"], revalidate: 300 },
+  }),
+  detail: (id: string) =>
+    createApiDefinition<Product>({
+      method: "GET",
+      endpoint: `/products/${id}`,
+      client: { tags: ["products", `product:${id}`], revalidate: 300 },
+    }),
+  like: (id: string) =>
+    createApiDefinition<{ success: boolean }>({
+      method: "POST",
+      endpoint: `/products/${id}/like`,
+    }),
+};
+```
+
+## Cached Response Headers
+
+`client.cachedHeaders`를 사용하면 `x-total-count`와 같이 **안전하고 크기가 작은 헤더**를 데이터와 함께 하이드레이션 페이로드에 포함시킬 수 있습니다.
+
+### Definition
+
+```ts path=null start=null
+export const listWithTotalDefinition = createApiDefinition<Product[]>({
+  method: "GET",
+  endpoint: "/products",
+  client: {
+    tags: ["products"],
+    revalidate: 300,
+    cachedHeaders: ["x-total-count"],
+  },
+});
+```
+
+참고:
+- 민감한 헤더는 캐시하지 마세요.
+- 추가 요청 없이 하이드레이션 페이로드에서 복원됩니다.
+
+## 옵션 요약
+
+- method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'
+- endpoint: 문자열(경로)
+- baseURL?: 문자열(엔드포인트 앞에 붙음)
+- headers?: HeadersInit(병합; 'null'|'undefined' 문자열은 해당 헤더 제거)
+- server?: `{ cache?: RequestCache; revalidate?: number; tags?: string[] }`
+- client?: `{ revalidate?: number; tags?: string[]; cachedHeaders?: string[] }`
+- timeout?: number(초)
+- retry?: `{ count: number; delay?: number }`
+- interceptors?: string[](전역 등록한 이름)
+
+## 기본값
+
+- server.cache: 값을 생략하면 next-nexus는 기본값으로 'no-store'를 사용합니다. Next.js 14의 기본은 'force-cache', 15+는 'no-store'이지만, next-nexus는 일관성을 위해 기본을 'no-store'로 유지합니다. 정적 캐싱이나 ISR이 필요한 경우에만 `server.cache: 'force-cache'`를 명시하세요.
+- 네이밍: 명확성을 위해 `*Definition` 접미사를 사용하세요(예: `productDefinition`, `listWithTotalDefinition`).
+
+## 타입
+
+- 전송 계층 중심 타입을 선호: `Product`, `ProductListResponse`.
+- 제네릭 응답 타입은 `nexus`, `useNexusQuery`, `useNexusMutation`, `nexusCache`로 흐릅니다.
+- 런타임 스키마(Zod 등)는 스키마에서 TS 타입을 유도(`ProductSchema` → `type Product = z.infer<...>`).
+
+## 패턴
+
+- 파라미터화된 엔드포인트의 동적 정의(팩토리 함수 사용):
+
+```ts path=null start=null
+const detail = (id: string) =>
+  createApiDefinition<Product>({ method: "GET", endpoint: `/products/${id}` });
+```
+
+- `client.cachedHeaders`로 안전한 소형 헤더를 캐시(e.g., `x-total-count`).
+- 태그를 일관되게 사용해 서버/클라이언트 재검증을 정밀하게 수행.
+
+## 안티패턴
+
+- 위임되는 서브트리 내부에서 서버 전용 API 직접 사용
+- 태그를 생략하고 나중에 정밀 재검증 시도
+- 공통 팩토리를 사용하지 않고 개별적으로 정의 작성(기본값 일관성과 타입 안정성 취약)
+
+## 팁
+- 헤더 병합: 문자열 'null' 또는 'undefined'로 지정하면 병합 후 해당 헤더가 제거됩니다.
+- 라우트 프록시: 훅에서 `route`를 전달하면 `baseURL`은 비워지고 해당 경로가 endpoint로 사용됩니다.
+
+## 함께 보기
+
+- [nexus](/ko/api/nexus)
+- [Interceptors](/ko/api/interceptors)
+- [Revalidation](/ko/api/revalidation)

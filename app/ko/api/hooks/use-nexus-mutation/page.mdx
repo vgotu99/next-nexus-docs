@@ -1,0 +1,70 @@
+---
+title: useNexusMutation
+description: 생성/수정/삭제 작업을 위한 클라이언트 훅(생명주기 콜백 포함).
+---
+
+# useNexusMutation
+
+임포트:
+```ts path=null start=null
+import { useNexusMutation } from 'next-nexus/client'
+```
+
+## 시그니처 요약
+```ts path=null start=null
+useNexusMutation<TContext, TError, TData, TVariables>(factory, options?) => {
+  data, headers, error, isPending, isSuccess, isError,
+  mutate, mutateAsync, reset
+}
+```
+
+## 특징
+- 시그니처: 팩토리 함수 `(variables) => NexusDefinition`를 전달
+- 중복 실행 방지(요청 진행 중 재호출 시 예외)
+- onStart/onSuccess/onError/onSettled 콜백 지원
+- `route` 옵션으로 Next.js Route Handler를 통한 프록시 가능
+  - `route`가 지정되면 `baseURL`은 빈 문자열로 강제되고, 해당 `route`가 유효 endpoint로 사용됩니다.
+
+## 예제
+
+### 기본(팩토리 함수 + 변수)
+```tsx path=null start=null
+'use client'
+import { useNexusMutation, revalidateClientTags } from 'next-nexus/client'
+import { productDefinition } from '@/api/productDefinition'
+
+export function LikeButton({ id }: { id: string }) {
+  const { mutate, isPending } = useNexusMutation(
+    (pid: string) => productDefinition.like(pid),
+    {
+      onSuccess: async () => {
+        revalidateClientTags(['products'])
+      },
+    }
+  )
+
+  return (
+    <button onClick={() => mutate(id)} disabled={isPending}>
+      {isPending ? 'Liking…' : 'Like'}
+    </button>
+  )
+}
+```
+
+### route 프록시 사용
+```tsx path=null start=null
+'use client'
+import { useNexusMutation } from 'next-nexus/client'
+import { productDefinition } from '@/api/productDefinition'
+
+export function Save({ id, name }: { id: string; name: string }) {
+  const { mutate, isPending } = useNexusMutation(
+    (input: { id: string; name: string }) => productDefinition.like(id, name),
+    { route: '/api/internal/save' }
+  )
+  return <button onClick={() => mutate({ id, name })} disabled={isPending}>Save</button>
+}
+```
+
+### 중복 실행 가드
+- 진행 중일 때 두 번째 mutate 호출은 예외를 던집니다. 버튼 비활성화 등으로 방지하세요.
