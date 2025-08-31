@@ -3,6 +3,10 @@ import { Metadata } from "next";
 
 export const metadata: Metadata = {
   description: "Next.js를 위한 지능형 데이터 레이어",
+  openGraph: {
+    title: "next-nexus",
+    description: "Next.js를 위한 지능형 데이터 레이어",
+  },
 };
 
 const KoreanLayout = ({ children }: { children: React.ReactNode }) => {
