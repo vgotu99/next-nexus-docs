@@ -8,7 +8,7 @@ description: Client-side hook for GET queries with hydration-aware behavior.
 Import:
 
 ```ts path=null start=null
-import { useNexusQuery } from "next-nexus/client";
+import { useNexusQuery } from 'next-nexus/client';
 ```
 
 ## Signature
@@ -20,36 +20,37 @@ useNexusQuery<TData, TSelectedData = TData>(
     route?: string
     enabled?: boolean
     select?: (data: TData) => TSelectedData
-    refetchOnWindowFocus?: boolean
-    refetchOnMount?: boolean
+    revalidateOnWindowFocus?: boolean
+    revalidateOnMount?: boolean
+    keepStaleData?: boolean
   }
 ): {
   data: TSelectedData | undefined
   headers: Headers | undefined
   error: Error | null
   isPending: boolean
+  isPendingBackground: boolean
   isSuccess: boolean
   isError: boolean
-  refetch: () => Promise<void>
+  revalidate: () => Promise<void>
 }
 ```
 
 ## Notes
 
 - GET-only: throws if a non-GET definition is passed.
-- Hydration-aware: renders instantly if server provided hydrated data.
+- Hydration-aware: renders instantly if the server provided hydrated data.
 - Subscribes to the client cache and re-renders on updates.
-- `route` lets you proxy through an internal Next.js Route Handler.
-  - When `route` is provided, the runtime sets `baseURL` to '' and uses the `route` string as the effective endpoint for the request.
+- `route` lets you proxy via a Next.js Route Handler; when provided, runtime clears `baseURL` and uses `route` as the effective endpoint.
 
 ## Examples
 
 ### Basic
 
 ```tsx path=null start=null
-"use client";
-import { useNexusQuery } from "next-nexus/client";
-import { productDefinition } from "@/api/productDefinition";
+'use client';
+import { useNexusQuery } from 'next-nexus/client';
+import { productDefinition } from '@/api/productDefinition';
 
 export function ProductListClient() {
   const { data, isPending } = useNexusQuery(productDefinition.list);
@@ -57,7 +58,7 @@ export function ProductListClient() {
   if (!data && isPending) return <div>Loading...</div>;
   return (
     <ul>
-      {products.map((p) => (
+      {products.map(p => (
         <li key={p.id}>{p.name}</li>
       ))}
     </ul>
@@ -68,14 +69,12 @@ export function ProductListClient() {
 ### Route override (proxy)
 
 ```tsx path=null start=null
-"use client";
-import { useNexusQuery } from "next-nexus/client";
-import { productDefinition } from "@/api/productDefinition";
+'use client';
+import { useNexusQuery } from 'next-nexus/client';
+import { productDefinition } from '@/api/productDefinition';
 
 export function ProductListViaRoute() {
-  const { data } = useNexusQuery(productDefinition.list, {
-    route: "/api/products",
-  });
+  const { data } = useNexusQuery(productDefinition.list, { route: '/api/products' });
   return <div>{data?.length ?? 0} items</div>;
 }
 ```
@@ -83,13 +82,13 @@ export function ProductListViaRoute() {
 ### Select
 
 ```tsx path=null start=null
-"use client";
-import { useNexusQuery } from "next-nexus/client";
-import { statsDefinition } from "@/api/statsDefinition";
+'use client';
+import { useNexusQuery } from 'next-nexus/client';
+import { statsDefinition } from '@/api/statsDefinition';
 
 export function CountOnly() {
   const { data: count } = useNexusQuery(statsDefinition.summary, {
-    select: (s) => s.total,
+    select: s => s.total,
   });
   return <div>Total: {count ?? 0}</div>;
 }
@@ -98,23 +97,44 @@ export function CountOnly() {
 ### Reading cached headers
 
 ```tsx path=null start=null
-"use client";
-import { useNexusQuery } from "next-nexus/client";
-import { statsDefinition } from "@/api/statsDefinition";
+'use client';
+import { useNexusQuery } from 'next-nexus/client';
+import { statsDefinition } from '@/api/statsDefinition';
 
 export function WithTotal() {
   const { data, headers } = useNexusQuery(statsDefinition.listWithHeaders);
-  const total = headers?.get("x-total-count");
+  const total = headers?.get('x-total-count');
   return (
     <div>
-      Items: {data?.length ?? 0} / Total: {total ?? "n/a"}
+      Items: {data?.length ?? 0} / Total: {total ?? 'n/a'}
     </div>
   );
 }
 ```
 
-### Refetch behavior
+### Revalidation behavior
 
-- `refetchOnWindowFocus`: refetch on focus (default: true)
-- `refetchOnMount`: refetch on mount if no fresh cache (default: true)
+- `revalidateOnWindowFocus`: revalidate on focus (default: true)
+- `revalidateOnMount`: revalidate on mount when stale (default: true)
+- `keepStaleData`: keep stale data and revalidate in background (default: true)
 - `enabled`: set to false to disable fetching and subscriptions
+
+## Foreground vs background semantics (revalidate and auto events)
+
+revalidate() uses the same decision logic as automatic revalidation on mount/focus:
+- No cached entry exists → foreground
+- Cached entry exists and is expired →
+  - background if `keepStaleData=true`
+  - foreground if `keepStaleData=false`
+- Cached entry exists and is fresh → no fetch (revalidate is a no-op)
+
+## State flags and UX mapping
+
+- Foreground fetch → `isPending=true`, `isPendingBackground=false`
+  - Use this for visible loading states. If `keepStaleData=false` and the entry is expired, you typically clear the UI and show a spinner.
+- Background fetch → `isPending=false`, `isPendingBackground=true`
+  - Keep stale data on screen and avoid disruptive loading spinners. Prefer a subtle busy indicator (e.g., disable a Refresh button) while background work runs.
+
+Practical guideline
+- Show a loader only when `isPending && !data`.
+- For background refreshes, keep the UI stable and optionally show a light progress affordance.

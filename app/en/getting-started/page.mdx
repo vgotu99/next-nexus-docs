@@ -1,134 +1,82 @@
 ---
 title: Getting Started
-description: Quick start guide for next-nexus
+description: Setup next-nexus runtime and enable hydration per segment
 ---
 
 # Getting Started
 
-## Install
+Follow two steps to enable next-nexus end to end, then verify with the checklist.
 
-```bash
-npm install next-nexus
-# or
-pnpm install next-nexus
-# or
-yarn add next-nexus
-```
+## 1) Install the global client runtime (once)
 
-**Requires:** Next.js >= 14.2 and React >= 18.2
+Add the runtime once in your root layout to initialize the client cache and send client cache metadata with RSC requests.
 
-## - Wrap Your App with `NexusProvider`
-
-```tsx
+```tsx path=null start=null
 // app/layout.tsx
-import { NexusProvider } from 'next-nexus';
+import { NexusRuntime } from 'next-nexus/client';
 
-export default function RootLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang='en'>
+    <html lang="en">
       <body>
-        <NexusProvider>{children}</NexusProvider>
+        {children}
+        {/* Install once globally. Do not put this in nested layouts. */}
+        <NexusRuntime />
       </body>
     </html>
   );
 }
 ```
 
-## - Define Your API Request
+Notes
+- Install exactly once globally. Multiple installations cause duplicate work.
+- Keep it near `</body>` so it mounts after your page tree.
 
-```ts
-// src/api/productDefinition.ts
-import { createNexusDefinition } from 'next-nexus';
+## 2) Enable hydration in data‑fetching segments
 
-export interface Product {
-  id: string;
-  name: string;
-}
+Wrap the segment that fetches data with a hydration boundary — either at the segment layout or with a page‑level HOC.
 
-// factory (required)
-export const createApiDefinition = createNexusDefinition({
-  baseURL: 'https://api.example.com',
-  retry: { count: 1, delay: 1 },
-  timeout: 5,
-});
+Option A — Segment layout boundary (recommended for segments with multiple pages)
+```tsx path=null start=null
+// app/(shop)/products/layout.tsx
+import { NexusHydrationBoundary } from 'next-nexus/server';
 
-export const productDefinition = {
-  list: createApiDefinition<Product[]>({
-    method: 'GET',
-    endpoint: '/products',
-    server: {
-      tags: ['products'],
-      revalidate: 1800,
-    },
-    client: {
-      tags: ['products'],
-      revalidate: 300,
-      cachedHeaders: ['x-total-count'],
-    },
-  }),
-};
-```
-## Fetch in a Server Component
-
-```tsx
-// app/products/page.tsx
-import { nexus } from 'next-nexus';
-import { productDefinition } from '@/api/productDefinition';
-
-const ProductsPage = async () => {
-  const res = await nexus(productDefinition.list);
-  const products = res.data ?? [];
-
-  return (
-    <ul>
-      {products.map(p => (
-        <li key={p.id}>{p.name}</li>
-      ))}
-    </ul>
-  );
-};
-
-export default ProductsPage;
-```
-
-### Use in a Client Component
-
-```tsx
-// components/ProductListClient.tsx
-'use client';
-
-import { useNexusQuery } from 'next-nexus/client';
-import { productDefinition } from '@/api/productDefinition';
-
-export function ProductListClient() {
-  const { data, isPending } = useNexusQuery(productDefinition.list);
-  const products = data ?? [];
-
-  if (isPending && !data) return <div>Loading...</div>;
-
-  return (
-    <ul>
-      {products.map(p => (
-        <li key={p.id}>{p.name}</li>
-      ))}
-    </ul>
-  );
+export default function ProductsLayout({ children }: { children: React.ReactNode }) {
+  return <NexusHydrationBoundary>{children}</NexusHydrationBoundary>;
 }
 ```
 
-## What's Next?
+Option B — Page‑level HOC (when the segment doesn’t need its own layout)
+```tsx path=null start=null
+// app/(shop)/products/page.tsx
+import { withNexusHydrationBoundary, nexus } from 'next-nexus/server';
+import { productDefinition } from '@/api/productDefinition';
 
-- [Core Concepts](/en/core-concepts) - Learn about hydration, rendering delegation, and caching strategies
-- [API Reference](/en/api) - Explore all available hooks, components, and utilities
+async function ProductsPage() {
+  const { data: products, headers } = await nexus(productDefinition.list);
+  const total = headers.get('x-total-count');
+  return (
+    <div>
+      <h1>Products ({total ?? 'n/a'})</h1>
+      <ul>{products?.map(p => <li key={p.id}>{p.name}</li>)}</ul>
+    </div>
+  );
+}
 
-## Navigation
-- Setup: [NexusProvider](/en/api/nexus-provider) → [Definitions](/en/api/definitions)
-- Data fetching: [nexus](/en/api/nexus) → [useNexusQuery](/en/api/hooks/use-nexus-query) / [useNexusMutation](/en/api/hooks/use-nexus-mutation)
-- Cross-cutting: [Interceptors](/en/api/interceptors) → [Revalidation](/en/api/revalidation) → [nexusCache](/en/api/nexus-cache)
-- Troubleshooting: [Debugging](/en/debugging) → [Error Handling](/en/api/errors)
+export default withNexusHydrationBoundary(ProductsPage);
+```
 
-> **Congratulations!** 🎉 You've successfully set up next-nexus. Your app now has intelligent data management with automatic caching and hydration.
+Decision guide
+- Use a layout boundary when several sibling pages under the same segment fetch data.
+- Use the page HOC when only a single page fetches data and a new layout would be boilerplate.
+
+## Validation checklist
+- Root layout contains exactly one <NexusRuntime />.
+- Exactly one hydration boundary applies to a given rendered page: either segment layout OR page HOC, not both.
+- Server code imports from "next-nexus/server"; client code imports from "next-nexus/client".
+- Definition objects are created via a shared factory (createNexusDefinition) and include explicit generic response types.
+
+## Next steps
+- Define requests: see [Definitions](/en/api/definitions)
+- Fetch on the server: see [nexus](/en/api/nexus)
+- Query on the client: see [useNexusQuery](/en/api/hooks/use-nexus-query)

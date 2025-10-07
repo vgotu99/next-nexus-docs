@@ -2,7 +2,7 @@ const meta = {
   "getting-started": "시작하기",
   "core-concepts": "핵심 원리",
   api: "API Reference",
-  debugging: "디버깅",
+  debugging: "디버깅 & 트러블슈팅",
 };
 
 export default meta;

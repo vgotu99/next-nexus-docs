@@ -1,0 +1,59 @@
+---
+title: NexusRuntime
+description: 클라이언트 캐시를 초기화하고 next-nexus 기능을 활성화합니다.
+---
+
+# NexusRuntime
+
+클라이언트 전용 컴포넌트로, 클라이언트 캐시와 하이드레이션 적용을 위한 런타임을 부팅합니다.
+
+## Import
+
+```ts path=null start=null
+import { NexusRuntime } from 'next-nexus/client';
+```
+
+## 역할
+- `useNexusQuery` 등 훅에서 사용하는 클라이언트 인메모리 LRU 캐시를 초기화합니다.
+- 서버에서 전달된 하이드레이션 페이로드를 적용해 캐시를 미리 채웁니다.
+- RSC(fetch) 시 클라이언트 캐시 메타데이터를 쿠키로 추가하여 서버가 최적 결정을 내릴 수 있게 합니다(예: ETag 일치 시 하이드레이션 스킵, not‑modified 키의 TTL 연장).
+- 훅이 캐시 신선도와 `keepStaleData` 옵션을 바탕으로 전경/배경 재검증을 선택할 수 있도록 런타임 기반을 제공합니다. 모드 선택 자체는 훅 내부에서 수행됩니다.
+
+## 사용법
+루트 레이아웃의 `</body>` 직전에 전역 1회만 포함하세요. 중첩 레이아웃에는 추가하지 마세요.
+
+```tsx path=null start=null
+// app/layout.tsx
+import { NexusRuntime } from 'next-nexus/client';
+
+export default function RootLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <html lang="ko">
+      <body>
+        {children}
+        <NexusRuntime />
+      </body>
+    </html>
+  );
+}
+```
+
+참고
+- 전역 1회만 설치하세요. 중첩 레이아웃에는 추가하지 마세요.
+- `</body>` 내부에 두면 페이지 트리 마운트 이후 런타임이 초기화됩니다.
+
+## Props
+- `maxSize?: number` — 클라이언트 LRU 캐시의 최대 엔트리 수(기본값: 200).
+
+## RSC 연동(클라이언트 캐시 메타데이터 → 서버)
+React Server Component(RSC) 요청 중에 fetch를 가로채, 서버가 클라이언트 캐시 상태를 이해할 수 있도록 짧은 수명의 쿠키를 기록합니다:
+- `__NEXUS_PATHNAME__` — 정규화된 현재 pathname
+- `__NEXUS_CLIENT_CACHE__` — `{ cacheKey, ttl, etag }` 배열을 base64로 인코딩한 JSON
+
+이를 통해 서버는 다음을 수행할 수 있습니다.
+- ETag 일치 시 페이로드 전송을 생략(하이드레이션 스킵)
+- 변경 없음(not‑modified) 키의 TTL을 클라이언트에서 연장
+
+참고
+- 쿠키는 매우 짧은 시간 동안만 유지되며, 현재 RSC 처리에 필요한 메타데이터 전달에만 사용됩니다.
+- 현재 pathname에 인덱싱된 키만 포함됩니다.

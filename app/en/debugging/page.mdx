@@ -3,26 +3,30 @@ title: Debugging
 description: Enable dev logs and understand cache/request events.
 ---
 
-# Debugging (Dev Only)
+# Debugging & Troubleshooting
 
-Enable detailed cache logs:
+Enable detailed logs:
+
 ```bash path=null start=null
 # .env.local
 NEXT_PUBLIC_NEXUS_DEBUG=true
 ```
 
 ## Request Events
+
 - START — request started
 - SUCCESS — request finished successfully
 - ERROR — request failed
 - TIMEOUT — request aborted by timeout
 
 ## Cache Events
-- HIT/MISS — client cache lookup results
+
+- HIT/HIT-STALE/MISS — client cache lookup results
 - SKIP/MATCH — server decided to skip hydration (notModified) or matched a client entry
-- DELEGATE — server delegated rendering with `<NexusSuspense>`
 - SET/UPDATE/DELETE — client cache write operations
-- Logs include baseKey, tags, ttl, revalidate, size/maxSize (dev only).
 
-> Logs are printed only in development.
+## When hydration seems missing
 
+- Ensure the segment applies a hydration boundary (layout) or the page is exported via withNexusHydrationBoundary.
+- Verify that the exact same definition (method/endpoint/tags/revalidate/cachedHeaders) is used on both server and client.
+- Confirm headers you read on the client are listed in definition.client.cachedHeaders.

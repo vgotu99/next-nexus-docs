@@ -1,0 +1,68 @@
+---
+title: NexusRenderer | Rendering Delegation
+description: Reduce TTFB and server work by delegating rendering to the client when cache is fresh.
+---
+
+# Rendering Delegation with NexusRenderer
+
+NexusRenderer skips server rendering when the client already has a fresh cache entry for the target definition(s). This reduces TTFB and server costs.
+
+## Single definition
+
+Use a server presentational component and a client re-export of the same component.
+
+```tsx path=null start=null
+// components/ProductListUI.tsx (server presentational)
+import type { Product } from '@/api/productDefinition';
+const ProductListUI = ({ data, title }: { data: Product[]; title: string }) => (
+  <div>
+    <h2>{title}</h2>
+    <ul>{data.map(p => <li key={p.id}>{p.name}</li>)}</ul>
+  </div>
+);
+export default ProductListUI;
+
+// components/client-ui/index.ts (client re-export)
+'use client';
+export { default as ProductListUIClient } from '@/components/ProductListUI';
+
+// app/(shop)/page.tsx (server)
+import { NexusRenderer } from 'next-nexus/server';
+import { productDefinition } from '@/api/productDefinition';
+import ProductListUI from '@/components/ProductListUI';
+import { ProductListUIClient } from '@/client-ui';
+
+export default function Page() {
+  return (
+    <NexusRenderer
+      definition={productDefinition.list}
+      serverComponent={ProductListUI}
+      clientComponent={ProductListUIClient}
+      componentProps={{ title: 'Our Products!' }}
+    />
+  );
+}
+```
+
+How it decides
+- If the client cache has a fresh entry (based on TTL) for the definition’s cache key, the server releases rendering and lets the client render immediately.
+- If stale or missing, the server renders and (if needed) fetches with nexus and hydrates the client.
+
+## Group of definitions
+
+Pass a map of definitions to decide collectively. If at least one is fresh on the client, the renderer will delegate and, if necessary, prefetch stale GET definitions on the server in the background.
+
+```tsx path=null start=null
+<NexusRenderer
+  definitions={{ products: productDefinition.list, stats: statsDefinition.summary }}
+  serverComponent={ServerGroup}
+  clientComponent={ClientGroup}
+  componentProps={{ title: 'Overview' }}
+/>
+```
+
+Caveats
+- You should not use server-only APIs directly within a subtree.
+- Ensure segment hydration is enabled (layout boundary or page HOC), otherwise delegation cannot hydrate.
+- Client components must be exported from a file with 'use client'.
+

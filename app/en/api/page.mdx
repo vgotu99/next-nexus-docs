@@ -1,27 +1,28 @@
 ---
-title: Entry Points
+title: API Reference
 ---
 
-# Entry Points
+# API Reference Overview
 
-Import from the proper subpath per environment.
+Subpaths
+- `next-nexus` (Universal): createNexusDefinition, interceptors, revalidateServerTags
+- `next-nexus/server` (Server only): nexus, NexusRenderer, NexusHydrationBoundary, withNexusHydrationBoundary
+- `next-nexus/client` (Client only): useNexusQuery, useNexusInfiniteQuery, useNexusMutation, useNexusAction, useNexusFormAction, NexusRuntime, nexusCache, revalidateClientTags
+- `next-nexus/errors` (Errors): isNexusError
 
-- `next-nexus` (Universal): `nexus`, `interceptors`, `createNexusDefinition`, `NexusProvider`, `NexusSuspense`
-
-- `next-nexus/client` (Client-only): `useNexusQuery`, `useNexusMutation`, `useNexusAction`, `useNexusFormAction`, `nexusCache`, `revalidateClientTags`
-
-- `next-nexus/server` (Server-only): `revalidateServerTags`
-
-- `next-nexus/errors` (Errors): `isNexusError`
-
-## Topics
+Topics
 - [nexus](/en/api/nexus)
 - [Interceptors](/en/api/interceptors)
 - [useNexusQuery](/en/api/hooks/use-nexus-query)
+- [useNexusInfiniteQuery](/en/api/hooks/use-nexus-infinite-query)
 - [useNexusMutation](/en/api/hooks/use-nexus-mutation)
 - [useNexusAction](/en/api/hooks/use-nexus-action)
 - [useNexusFormAction](/en/api/hooks/use-nexus-form-action)
 - [nexusCache](/en/api/nexus-cache)
 - [Revalidation](/en/api/revalidation)
 - [Error Handling](/en/api/errors)
+- [Rendering Delegation](/en/api/rendering-delegation)
+
+Version note
+- Import paths in this documentation match the latest repository README. If you are on an older version, some symbols may live under different subpaths.
 

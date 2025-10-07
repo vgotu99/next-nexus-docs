@@ -18,17 +18,19 @@ useNexusQuery<TData, TSelectedData = TData>(
     route?: string
     enabled?: boolean
     select?: (data: TData) => TSelectedData
-    refetchOnWindowFocus?: boolean
-    refetchOnMount?: boolean
+    revalidateOnWindowFocus?: boolean
+    revalidateOnMount?: boolean
+    keepStaleData?: boolean
   }
 ): {
   data: TSelectedData | undefined
   headers: Headers | undefined
   error: Error | null
   isPending: boolean
+  isPendingBackground: boolean
   isSuccess: boolean
   isError: boolean
-  refetch: () => Promise<void>
+  revalidate: () => Promise<void>
 }
 ```
 
@@ -36,8 +38,7 @@ useNexusQuery<TData, TSelectedData = TData>(
 - GET 전용(아닌 경우 예외 발생)
 - 서버 하이드레이션 결과를 즉시 활용
 - 클라이언트 캐시 구독으로 실시간 동기화
-- `route` 옵션으로 Next.js Route Handler를 통한 프록시 지원
-  - `route`가 지정되면 런타임은 `baseURL`을 빈 문자열로 강제하고, 해당 `route` 문자열을 유효 endpoint로 사용합니다.
+- `route` 옵션으로 Next.js Route Handler를 통한 프록시 지원(지정 시 `baseURL` 초기화 후 `route`를 유효 endpoint로 사용)
 
 ## 예제
 
@@ -94,7 +95,28 @@ export function WithTotal() {
 }
 ```
 
-### 재요청 동작
-- `refetchOnWindowFocus`: 창 포커스 시 재요청(기본 true)
-- `refetchOnMount`: 마운트 시 신선한 캐시가 없으면 재요청(기본 true)
+### 재검증 동작
+- `revalidateOnWindowFocus`: 포커스 시 재검증(기본 true)
+- `revalidateOnMount`: 마운트 시 만료 상태면 재검증(기본 true)
+- `keepStaleData`: 만료 상태에서도 백그라운드 재검증 중 데이터를 유지(기본 true)
 - `enabled`: false로 비활성화 시 요청/구독 중단
+
+## 전경/배경 동작(수동 revalidate 및 자동 이벤트)
+
+revalidate()는 마운트/포커스 시 자동 재검증과 동일한 결정 로직을 사용합니다.
+- 캐시 엔트리가 없음 → 전경(foreground)
+- 캐시 엔트리가 있고 만료됨 →
+  - `keepStaleData=true`이면 배경(background)
+  - `keepStaleData=false`이면 전경(foreground)
+- 캐시 엔트리가 신선함 → 요청 없음(no-op)
+
+## 상태 플래그와 UX 매핑
+
+- 전경 패치 → `isPending=true`, `isPendingBackground=false`
+  - 눈에 보이는 로딩 상태에 사용합니다. `keepStaleData=false`이며 만료 상태라면 UI를 비우고 스피너를 표시하는 형태가 일반적입니다.
+- 배경 패치 → `isPending=false`, `isPendingBackground=true`
+  - 기존(만료된) 데이터를 유지하고, 눈에 띄는 스피너 대신 가벼운 진행 표시(예: 새로고침 버튼 비활성화)를 권장합니다.
+
+실무 가이드
+- `isPending && !data`일 때만 스피너를 보여주세요.
+- 배경 재검증 중에는 UI를 안정적으로 유지하고, 필요 시 미세한 진행 신호만 제공합니다.

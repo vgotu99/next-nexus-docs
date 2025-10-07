@@ -1,6 +1,6 @@
 ---
 title: nexus
-description: Primary server-side data fetch function with hydration, delegation, retry/timeout, and interceptors.
+description: Server-side data fetching with hydration, retries/timeouts, and interceptors.
 ---
 
 # nexus
@@ -8,7 +8,7 @@ description: Primary server-side data fetch function with hydration, delegation,
 Import:
 
 ```ts path=null start=null
-import { nexus, createNexusDefinition, NexusProvider } from "next-nexus";
+import { withNexusHydrationBoundary, nexus } from 'next-nexus/server';
 ```
 
 ## Signature
@@ -17,12 +17,80 @@ import { nexus, createNexusDefinition, NexusProvider } from "next-nexus";
 nexus<T>(definition: NexusDefinition<T>): Promise<NexusResponse<T>>
 ```
 
-## Definition Options
+## Examples
 
+Minimal HOC example in a segment without layout:
+```tsx path=null start=null
+// app/(shop)/products/page.tsx
+import { withNexusHydrationBoundary, nexus } from 'next-nexus/server';
+import { productDefinition } from '@/api/productDefinition';
+
+async function ProductsPage() {
+  const { data: products, headers } = await nexus(productDefinition.list);
+  const total = headers.get('x-total-count');
+  return (
+    <div>
+      <h1>Products ({total ?? 'n/a'})</h1>
+      <ul>{products?.map(p => <li key={p.id}>{p.name}</li>)}</ul>
+    </div>
+  );
+}
+
+export default withNexusHydrationBoundary(ProductsPage);
+```
+
+Multiple requests with an auth interceptor:
+```tsx path=null start=null
+// app/(shop)/dashboard/page.tsx
+import { withNexusHydrationBoundary, nexus } from 'next-nexus/server';
+import { productDefinition } from '@/api/productDefinition';
+import { createDefinition } from '@/api/nexusDefinition';
+
+const stats = createDefinition<{ users: number; orders: number }>({
+  method: 'GET', endpoint: '/stats', interceptors: ['auth'],
+  server: { revalidate: 300, tags: ['stats'] },
+});
+
+async function DashboardPage() {
+  const [productsRes, statsRes] = await Promise.all([
+    nexus(productDefinition.list),
+    nexus(stats),
+  ]);
+  return (
+    <div>
+      <h2>Stats: users {statsRes.data?.users} / orders {statsRes.data?.orders}</h2>
+      <ul>{productsRes.data?.map(p => <li key={p.id}>{p.name}</li>)}</ul>
+    </div>
+  );
+}
+
+export default withNexusHydrationBoundary(DashboardPage);
+```
+
+Timeouts and retries (seconds):
+```ts path=null start=null
+const slowReport = createDefinition<{ ok: boolean }>({
+  method: 'GET', endpoint: '/report', timeout: 8, retry: { count: 2, delay: 2 },
+});
+```
+
+Revalidation after mutations (from a client component):
+```tsx path=null start=null
+'use client';
+import { revalidateClientTags } from 'next-nexus/client';
+import { revalidateServerTags } from 'next-nexus';
+
+async function onSuccess() {
+  await revalidateServerTags(['products']);
+  revalidateClientTags(['products']);
+}
+```
+
+## Definition options (overview)
 - method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'
 - endpoint: string (e.g. '/products')
 - baseURL?: string (prepends endpoint)
-- headers?: HeadersInit (merged)
+- headers?: HeadersInit (merged; string 'null'|'undefined' removes a header)
 - server?: `{ cache?: RequestCache; revalidate?: number; tags?: string[] }`
 - client?: `{ revalidate?: number; tags?: string[]; cachedHeaders?: string[] }`
 - timeout?: number (seconds)
@@ -30,92 +98,4 @@ nexus<T>(definition: NexusDefinition<T>): Promise<NexusResponse<T>>
 - interceptors?: string[] (names of globally registered interceptors)
 
 ### Defaults
-- Cache: if `server.cache` is omitted, next‑nexus defaults to `no-store` (Next.js 14 default is `force-cache`, 15+ is `no-store`). Set `server.cache: 'force-cache'` explicitly only where static caching/ISR is desired.
-
-## Behavior
-
-1. Request/Response Interceptors
-   - Interceptors registered by name run in order on the server and/or client depending on their logic.
-2. Retry & Timeout
-   - Uses abortable timeouts and retries on timeout/server/ratelimited errors.
-3. Hydration (Server, GET + client options)
-   - Response data, tags, TTL, and selected headers are collected per-request.
-   - Injected into HTML (`window.__NEXUS_PAYLOAD__`) and restored on the client.
-4. ETag-aware TTL Extension
-   - If client cache is stale and server ETag equals the client's ETag, the server marks the key as not-modified and the client extends TTL without re-downloading.
-5. Rendering Delegation (with `<NexusSuspense>`)
-   - If the client has a fresh cache entry for the matching GET definition and delegation is enabled, the server can skip rendering that subtree.
-6. Next.js Cache Integration
-   - `server.revalidate/tags` map to Next's `next:{ revalidate, tags }` and `cache` options.
-
-## Error Handling
-
-- Errors are `NexusError` when originated from the library. Use `isNexusError` to detect.
-
-```ts path=null start=null
-import { isNexusError } from "next-nexus/errors";
-
-try {
-  const res = await nexus(productDefinition.list);
-} catch (e) {
-  if (isNexusError(e)) {
-    // e.code, e.response?.status, e.message
-  }
-}
-```
-
-## Examples
-
-### Basic GET (factory usage)
-
-```ts path=null start=null
-import { createNexusDefinition } from 'next-nexus'
-
-export interface Product {
-  id: string
-  name: string
-}
-
-export const createApiDefinition = createNexusDefinition({
-  baseURL: 'https://api.example.com',
-  retry: { count: 1, delay: 1 },
-  timeout: 5,
-})
-
-export const productDefinition = {
-  list: createApiDefinition<Product[]>({
-    method: 'GET',
-    endpoint: '/products',
-    server: { tags: ['products'], revalidate: 1800 },
-    client: { tags: ['products'], revalidate: 300, cachedHeaders: ['x-total-count'] },
-  }),
-}
-```
-
-### POST (factory usage)
-
-```ts path=null start=null
-const like = (id: string) =>
-  createApiDefinition<{ success: boolean }>({
-    method: 'POST',
-    endpoint: `/products/${id}/like`,
-  })
-```
-
-### With Interceptors
-
-```ts path=null start=null
-import { interceptors } from "next-nexus";
-
-interceptors.request.use("auth", async (config) => {
-  const headers = new Headers(config.headers);
-  headers.set("authorization", "Bearer <token>");
-  return { ...config, headers };
-});
-
-const protectedList = createNexusDefinition<{ items: unknown[] }>({
-  method: "GET",
-  endpoint: "/api/protected",
-  interceptors: ["auth"],
-});
-```
+- If `server.cache` is omitted, next‑nexus defaults to `no-store`. Set `server.cache: 'force-cache'` explicitly only for static caching/ISR.

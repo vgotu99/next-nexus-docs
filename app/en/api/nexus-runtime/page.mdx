@@ -1,0 +1,59 @@
+---
+title: NexusRuntime
+description: Initializes the client-side cache and enables next-nexus features.
+---
+
+# NexusRuntime
+
+A client-only component that boots the runtime needed for client-side caching and hydration.
+
+## Import
+
+```ts path=null start=null
+import { NexusRuntime } from 'next-nexus/client';
+```
+
+## Role
+- Initializes the client in-memory cache (LRU) used by hooks like `useNexusQuery`.
+- Applies hydration payload sent from the server to prime the client cache.
+- Add client cache metadata during RSC fetches so the server can make optimal decisions (e.g., skip hydration on ETag match, extend TTL for not‑modified keys).
+- Provides the runtime primitives that hooks rely on to decide foreground vs background revalidation based on cache freshness and the `keepStaleData` option. Mode selection itself happens inside the hooks, not in NexusRuntime.
+
+## Usage
+Insert once in the root layout, near the closing `</body>`. Do not add to nested layouts.
+
+```tsx path=null start=null
+// app/layout.tsx
+import { NexusRuntime } from 'next-nexus/client';
+
+export default function RootLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <html lang="en">
+      <body>
+        {children}
+        <NexusRuntime />
+      </body>
+    </html>
+  );
+}
+```
+
+Notes
+- Install exactly once globally. Do not add to nested layouts.
+- Keep it inner `</body>` so the runtime mounts after your page tree.
+
+## Props
+- `maxSize?: number` — Maximum number of entries for the client LRU cache. Default: 200.
+
+## RSC integration (client cache metadata → server)
+During React Server Component (RSC) requests, NexusRuntime intercepts fetch calls and writes short‑lived cookies with client cache metadata so the server can understand the client’s cache state:
+- `__NEXUS_PATHNAME__` — the normalized current pathname
+- `__NEXUS_CLIENT_CACHE__` — base64‑encoded JSON array of `{ cacheKey, ttl, etag }`
+
+This allows the server to:
+- Match ETags and skip sending payload (skip hydration) when the client already has the exact data
+- Mark not‑modified keys so the client can extend TTL without re‑downloading
+
+Notes
+- Cookies are short‑lived and only used to pass metadata for the current RSC turn.
+- Only keys indexed for the current pathname are included.

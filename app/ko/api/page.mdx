@@ -1,27 +1,28 @@
 ---
-title: Entry Points
+title: API 레퍼런스
 ---
 
-# Entry Points
+# API 레퍼런스 개요
 
-환경에 맞는 진입점에서 임포트하세요.
+서브패스
+- `next-nexus` (범용): createNexusDefinition, interceptors, revalidateServerTags
+- `next-nexus/server` (서버 전용): nexus, NexusRenderer, NexusHydrationBoundary, withNexusHydrationBoundary
+- `next-nexus/client` (클라이언트 전용): useNexusQuery, useNexusInfiniteQuery, useNexusMutation, useNexusAction, useNexusFormAction, NexusRuntime, nexusCache, revalidateClientTags
+- `next-nexus/errors` (오류): isNexusError
 
-- `next-nexus` (범용): `nexus`, `interceptors`, `createNexusDefinition`, `NexusProvider`, `NexusSuspense`
-
-- `next-nexus/client` (클라이언트 전용): `useNexusQuery`, `useNexusMutation`, `useNexusAction`, `useNexusFormAction`, `nexusCache`, `revalidateClientTags`
-
-- `next-nexus/server` (서버 전용): `revalidateServerTags`
-
-- `next-nexus/errors` (오류): `isNexusError`
-
-## 주제
+주제
 - [nexus](/ko/api/nexus)
+- [Interceptors](/ko/api/interceptors)
 - [useNexusQuery](/ko/api/hooks/use-nexus-query)
+- [useNexusInfiniteQuery](/ko/api/hooks/use-nexus-infinite-query)
 - [useNexusMutation](/ko/api/hooks/use-nexus-mutation)
 - [useNexusAction](/ko/api/hooks/use-nexus-action)
 - [useNexusFormAction](/ko/api/hooks/use-nexus-form-action)
-- [Interceptors](/ko/api/interceptors)
-- [Revalidation](/ko/api/revalidation)
 - [nexusCache](/ko/api/nexus-cache)
+- [Revalidation](/ko/api/revalidation)
 - [오류 처리](/ko/api/errors)
+- [렌더링 위임](/ko/api/rendering-delegation)
+
+버전 주의
+- 이 문서의 임포트 경로는 저장소의 최신 README를 기준으로 합니다. 사용 중인 라이브러리 버전에 따라 일부 심볼의 경로가 다를 수 있습니다.
 

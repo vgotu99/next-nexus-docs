@@ -1,0 +1,112 @@
+# useNexusInfiniteQuery (Client)
+
+Build infinite scroll or page-by-page UIs with a definition factory and a small set of options.
+
+## Signature
+
+- import: `import { useNexusInfiniteQuery } from 'next-nexus/client'`
+- params:
+  - `getDefinition(param) => NexusDefinition<TPage>` — a factory that returns a GET definition for the given page parameter.
+  - `options` — see below
+- returns: `{ data: { pages, pageParams } | undefined, headers, error, isPending, isPendingBackground, isSuccess, isError, hasNextPage, revalidateNext, prefetchRef? }`
+
+## Options
+
+- `initialPageParam` — starting parameter for the first page (e.g., null or 0)
+- `getNextPageParam(lastPage, pages) => param | null` — return null to stop
+- `keepPages` — keep only the most recent N pages to cap memory usage
+- `revalidateOnMount` (default: true)
+- `revalidateOnWindowFocus` (default: false)
+- `keepStaleData` (default: true)
+- `prefetchNextOnNearViewport` — `{ rootMargin?: string, threshold?: number }`; attaches an IntersectionObserver to prefetch the next page when the sentinel is near the viewport
+
+## Definition factory
+
+```ts path=null start=null
+// src/api/productDefinition.ts (excerpt)
+export interface InfiniteProduct {
+  products: { id: string; name: string }[];
+  nextCursor?: string | null;
+}
+
+export const productDefinition = {
+  infiniteList: (cursor: string | null) =>
+    createDefinition<InfiniteProduct>({
+      method: "GET",
+      endpoint: cursor ? `/products?cursor=${cursor}` : "/products",
+      client: {
+        tags: ["products", `cursor:${cursor ?? "first"}`],
+        revalidate: 300,
+      },
+    }),
+};
+```
+
+## Usage
+
+```tsx path=null start=null
+"use client";
+
+import { useNexusInfiniteQuery } from "next-nexus/client";
+import { productDefinition } from "@/api/productDefinition";
+
+export default function InfiniteProductList() {
+  const { data, hasNextPage, revalidateNext, prefetchRef, isPending } =
+    useNexusInfiniteQuery(productDefinition.infiniteList, {
+      initialPageParam: null,
+      getNextPageParam: (last) => last?.nextCursor ?? null,
+      keepPages: 5,
+      prefetchNextOnNearViewport: { rootMargin: "200px", threshold: 0 },
+    });
+
+  const all = data?.pages.flatMap((p) => p.products) ?? [];
+
+  return (
+    <div>
+      <ul>
+        {all.map((p) => (
+          <li key={p.id}>{p.name}</li>
+        ))}
+      </ul>
+      <button
+        onClick={() => revalidateNext()}
+        disabled={!hasNextPage || isPending}
+      >
+        {isPending ? "Loading…" : "Load more"}
+      </button>
+      {/* Optional sentinel for near-viewport prefetch */}
+      <div ref={prefetchRef} style={{ height: 1 }} />
+    </div>
+  );
+}
+```
+
+## Tips
+
+- Use keepPages to avoid unbounded memory growth.
+- Prefer small page sizes and lean payloads to maximize cache reuse.
+- getNextPageParam should be pure and deterministic for the given last page.
+
+## Foreground vs background semantics (revalidateNext/revalidatePage)
+
+The hook picks a mode per page parameter using the same rules as the single query hook:
+- No cached entry for that page → foreground
+- Cached entry exists and is expired →
+  - background if `keepStaleData=true`
+  - foreground if `keepStaleData=false`
+- Cached entry exists and is fresh → `revalidatePage` may append cached data and skip fetching
+
+Behavior details
+- `revalidatePage(param)` appends the cached page immediately when available and `keepStaleData=true`, then fetches if expired using the chosen mode. This enables smooth background prefetch.
+- `revalidateNext()` computes the next param and delegates to `revalidatePage`, so the same mode rules apply.
+
+## State flags and UX mapping
+
+- Foreground fetch(es) → increments `pendingCount` → `isPending=true`, `isPendingBackground=false`
+  - Block “Load more” and show a visible progress indicator.
+- Background fetch(es) → increments `pendingBackgroundCount` → `isPending=false`, `isPendingBackground=true`
+  - Keep the list stable; optionally show a subtle busy state. `prefetchRef` is ideal for background prefetch near the viewport.
+
+Guideline
+- Disable the “Load more” button while `isPending`.
+- Use `prefetchRef` to background‑prefetch the next page without disruptive UI changes.

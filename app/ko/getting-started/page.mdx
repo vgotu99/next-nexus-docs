@@ -1,27 +1,19 @@
 ---
 title: 시작하기
-description: next-nexus 시작 가이드
+description: 런타임 설치와 세그먼트별 하이드레이션 활성화 방법
 ---
 
 # 시작하기
 
-## 설치
+두 단계를 따라 next-nexus를 완전히 활성화하세요. 마지막에 체크리스트로 검증합니다.
 
-```bash
-npm install next-nexus
-# 또는
-pnpm install next-nexus
-# 또는
-yarn add next-nexus
-```
+## 1) 전역 클라이언트 런타임 설치(1회)
 
-**필수 요구사항:** Next.js >= 14.2, React >= 18.2
+루트 레이아웃에 한 번만 설치해 클라이언트 캐시를 초기화하고, RSC 요청에 클라이언트 캐시 메타데이터를 포함합니다.
 
-## `NexusProvider`로 앱 감싸기
-
-```tsx
+```tsx path=null start=null
 // app/layout.tsx
-import { NexusProvider } from 'next-nexus';
+import { NexusRuntime } from "next-nexus/client";
 
 export default function RootLayout({
   children,
@@ -29,107 +21,80 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang='ko'>
+    <html lang="ko">
       <body>
-        <NexusProvider>{children}</NexusProvider>
+        {children}
+        {/* 전역 1회만 설치하세요. 중첩 레이아웃에 두지 마세요. */}
+        <NexusRuntime />
       </body>
     </html>
   );
 }
 ```
 
-## API Definition 만들기
+참고
 
-```ts
-// src/api/productDefinition.ts
-import { createNexusDefinition } from 'next-nexus';
+- 전역 1회 설치. 여러 번 설치하면 불필요한 작업이 발생합니다.
+- `</body>` 근처에 두어 페이지 트리 마운트 이후 초기화되도록 합니다.
 
-export interface Product {
-  id: string;
-  name: string;
-}
+## 2) 데이터 페칭 세그먼트에 하이드레이션 활성화
 
-// 팩토리 함수(필수)
-export const createApiDefinition = createNexusDefinition({
-  baseURL: 'https://api.example.com',
-  retry: { count: 1, delay: 1 },
-  timeout: 5,
-});
+데이터를 가져오는 세그먼트를 하이드레이션 경계로 감싸 서버 데이터를 클라이언트로 전달합니다.
 
-export const productDefinition = {
-  list: createApiDefinition<Product[]>({
-    method: 'GET',
-    endpoint: '/products',
-    server: {
-      tags: ['products'],
-      revalidate: 1800,
-    },
-    client: {
-      tags: ['products'],
-      revalidate: 300,
-      cachedHeaders: ['x-total-count'],
-    },
-  }),
-};
-```
+옵션 A — 세그먼트 레이아웃에 경계 적용(동일 세그먼트에 여러 페이지가 있을 때 권장)
 
-## 서버 컴포넌트에서 데이터 가져오기
+```tsx path=null start=null
+// app/(shop)/products/layout.tsx
+import { NexusHydrationBoundary } from "next-nexus/server";
 
-```tsx
-// app/products/page.tsx
-import { nexus } from 'next-nexus';
-import { productDefinition } from '@/api/productDefinition';
-
-const ProductsPage = async () => {
-  const res = await nexus(productDefinition.list);
-  const products = res.data ?? [];
-
-  return (
-    <ul>
-      {products.map(p => (
-        <li key={p.id}>{p.name}</li>
-      ))}
-    </ul>
-  );
-};
-
-export default ProductsPage;
-```
-
-## 클라이언트 컴포넌트에서 사용하기
-
-```tsx
-// components/ProductListClient.tsx
-'use client';
-
-import { useNexusQuery } from 'next-nexus/client';
-import { productDefinition } from '@/api/productDefinition';
-
-export function ProductListClient() {
-  const { data, isPending } = useNexusQuery(productDefinition.list);
-  const products = data ?? [];
-
-  if (isPending && !data) return <div>로딩 중...</div>;
-
-  return (
-    <ul>
-      {products.map(p => (
-        <li key={p.id}>{p.name}</li>
-      ))}
-    </ul>
-  );
+export default function ProductsLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  return <NexusHydrationBoundary>{children}</NexusHydrationBoundary>;
 }
 ```
+
+옵션 B — 페이지 HOC 사용(해당 세그먼트에 별도 레이아웃이 필요 없을 때)
+
+```tsx path=null start=null
+// app/(shop)/products/page.tsx
+import { withNexusHydrationBoundary, nexus } from "next-nexus/server";
+import { productDefinition } from "@/api/productDefinition";
+
+async function ProductsPage() {
+  const { data: products, headers } = await nexus(productDefinition.list);
+  const total = headers.get("x-total-count");
+  return (
+    <div>
+      <h1>상품 목록 ({total ?? "n/a"})</h1>
+      <ul>
+        {products?.map((p) => (
+          <li key={p.id}>{p.name}</li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+export default withNexusHydrationBoundary(ProductsPage);
+```
+
+결정 가이드
+
+- 동일 세그먼트에 여러 페이지가 데이터를 가져오면 레이아웃 경계를 사용하세요.
+- 단일 페이지만 데이터를 가져오면 HOC가 보일러플레이트를 줄입니다.
+
+## 검증 체크리스트
+
+- 루트 레이아웃에 <NexusRuntime />가 정확히 1회 설치됨
+- 하나의 렌더 경로에는 레이아웃 경계 또는 페이지 HOC 중 하나만 적용됨(중복 금지)
+- 서버 코드는 "next-nexus/server", 클라이언트 코드는 "next-nexus/client"에서 임포트
+- 모든 definition은 공통 팩토리(createNexusDefinition)로 만들고, 제네릭 응답 타입을 명시
 
 ## 다음 단계
 
-- [핵심 개념](/ko/core-concepts) - 하이드레이션, 렌더링 위임, 캐싱 전략
-- [API 레퍼런스](/ko/api) - 훅/컴포넌트/유틸리티 전체 목록
-
-## 내비게이션
-- 설정: [NexusProvider](/ko/api/nexus-provider) → [Definitions](/ko/api/definitions)
-- 데이터 패칭: [nexus](/ko/api/nexus) → [useNexusQuery](/ko/api/hooks/use-nexus-query) / [useNexusMutation](/ko/api/hooks/use-nexus-mutation)
-- 공통 관심사: [Interceptors](/ko/api/interceptors) → [Revalidation](/ko/api/revalidation) → [nexusCache](/ko/api/nexus-cache)
-- 트러블슈팅: [디버깅](/ko/debugging) → [오류 처리](/ko/api/errors)
-
-> **축하합니다!** 🎉 next-nexus 설정을 성공적으로 완료했습니다. 이제 앱에 자동 캐싱과 하이드레이션이 포함된 지능형 데이터 관리 기능이 있습니다.
+- 요청 정의: [Definitions](/ko/api/definitions)
+- 서버에서 가져오기: [nexus](/ko/api/nexus)
+- 클라이언트에서 조회: [useNexusQuery](/ko/api/hooks/use-nexus-query)

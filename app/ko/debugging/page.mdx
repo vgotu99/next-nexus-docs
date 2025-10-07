@@ -3,26 +3,30 @@ title: 디버깅
 description: 개발 모드에서 로그를 활성화하고 이벤트를 이해하기.
 ---
 
-# 디버깅 (개발 전용)
+# 디버깅 & 트러블슈팅
 
-상세 캐시 로그 활성화:
+상세 로그 활성화:
+
 ```bash path=null start=null
 # .env.local
 NEXT_PUBLIC_NEXUS_DEBUG=true
 ```
 
 ## 요청 이벤트
+
 - START — 요청 시작
 - SUCCESS — 성공 완료
 - ERROR — 실패
 - TIMEOUT — 타임아웃으로 중단
 
 ## 캐시 이벤트
-- HIT/MISS — 클라이언트 캐시 조회 결과
+
+- HIT/HIT-STALE/MISS — 클라이언트 캐시 조회 결과
 - SKIP/MATCH — 서버가 notModified로 하이드레이션을 생략하거나 클라이언트 엔트리와 일치
-- DELEGATE — `<NexusSuspense>`로 서버가 렌더링을 위임
 - SET/UPDATE/DELETE — 클라이언트 캐시 쓰기 동작
-- 개발 로그에 baseKey, tags, ttl, revalidate, size/maxSize 표시
 
-> 로그는 개발 환경에서만 출력됩니다.
+## 하이드레이션이 누락된 것처럼 보일 때
 
+- 세그먼트 레이아웃 경계 또는 페이지 HOC(WithNexusHydrationBoundary) 적용 여부 확인
+- 서버/클라이언트에서 동일한 definition(메서드/엔드포인트/태그/revalidate/cachedHeaders) 사용 여부 확인
+- 클라이언트에서 읽는 헤더가 definition.client.cachedHeaders에 포함되어 있는지 확인

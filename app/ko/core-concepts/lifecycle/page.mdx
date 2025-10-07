@@ -7,13 +7,13 @@ description: 서버 페치부터 하이드레이션, 클라이언트 소비, 캐
 
 next‑nexus가 어떻게 동작하는지 한눈에 이해하세요.
 
-> 전제: Definition은 팩토리 기반만 사용하고, 앱은 반드시 NexusProvider로 감쌉니다. 참고: /ko/api/definitions, /ko/api/nexus-provider
+> 전제: Definition은 팩토리 기반만 사용하고, 루트 레이아웃에 NexusRuntime을 설치하며, 데이터 페칭 세그먼트를 NexusHydrationBoundary로 감쌉니다(또는 페이지를 withNexusHydrationBoundary로 export). 참고: /ko/getting-started, /ko/api/definitions
 
 ## 한눈에 보기
 1) 팩토리 함수로 엔드포인트 Definition 작성(기본 키는 Definition에서 파생).
 2) 서버(RSC)에서 필요한 곳에서 `nexus(...)` 호출 → 응답 헤더/페이로드 수집.
-3) 하이드레이션: `NexusProvider`가 최소 엔트리만 직렬화해 클라이언트로 전달.
-4) 클라이언트 마운트 시 `NexusProvider`가 복원.
+3) 하이드레이션: NexusHydrationBoundary가 수집된 엔트리를 직렬화해 클라이언트로 전달.
+4) 클라이언트 마운트 시 NexusRuntime이 복원.
 5) 읽기: 서버는 `nexus(...)`, 클라이언트는 `useNexusQuery`.
 6) 쓰기: `useNexusMutation`/`useNexusAction`/`useNexusFormAction` 후 태그 재검증.
 7) Cache, `revalidate`, tags는 Next.js 규칙과 1:1 매핑.

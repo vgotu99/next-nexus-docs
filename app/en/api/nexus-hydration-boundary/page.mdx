@@ -1,0 +1,54 @@
+---
+title: NexusHydrationBoundary & withNexusHydrationBoundary
+description: Captures server-fetched data for client-side hydration.
+---
+
+# NexusHydrationBoundary & withNexusHydrationBoundary
+
+Server-only APIs used to collect server-fetched data and serialize it for client hydration.
+
+## Import
+
+```ts path=null start=null
+import { NexusHydrationBoundary } from 'next-nexus/server';
+import { withNexusHydrationBoundary } from 'next-nexus/server';
+```
+
+## Role
+- Collects results of `nexus()` calls within the wrapped subtree during a server render (RSC).
+- Serializes a compact hydration payload for the client.
+- Pairs with `NexusRuntime` (client) to seed the in-memory cache on mount.
+
+## Usage Patterns
+
+### 1) Segment layout component
+Wrap the segment `layout.tsx` to enable hydration across all child pages of that segment.
+
+```tsx path=null start=null
+// app/products/layout.tsx
+import { NexusHydrationBoundary } from 'next-nexus/server';
+
+export default function ProductsLayout({ children }: { children: React.ReactNode }) {
+  return <NexusHydrationBoundary>{children}</NexusHydrationBoundary>;
+}
+```
+
+### 2) Page-level HOC
+Use the HOC when a separate `layout.tsx` is unnecessary and only a single page in the segment needs hydration.
+
+```tsx path=null start=null
+// app/dashboard/page.tsx
+import { withNexusHydrationBoundary } from 'next-nexus/server';
+
+async function DashboardPage() {
+  // ... server logic with nexus(...)
+  return <div>Dashboard</div>;
+}
+
+export default withNexusHydrationBoundary(DashboardPage);
+```
+
+## Decision Guide
+- Multiple pages in a segment need hydration → prefer the layout component.
+- Only a single page needs hydration and adding a layout would be boilerplate → prefer the page HOC.
+- Do not apply both the layout boundary and the page HOC to the same rendered path.
