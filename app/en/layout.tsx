@@ -12,9 +12,18 @@ export const metadata: Metadata = {
   openGraph: {
     title: "next-nexus",
     description: "The intelligent data layer for Next.js",
+    url: "https://next-nexus.vercel.app/en",
+    siteName: "Next-Nexus Docs",
     images: [
-      "https://raw.githubusercontent.com/vgotu99/next-nexus-docs/refs/heads/main/public/og.png",
+      {
+        url: "https://next-nexus.vercel.app/og.png",
+        width: 1200,
+        height: 630,
+        alt: "Next-Nexus Docs Open Graph Image",
+      },
     ],
+    locale: "en_US",
+    type: "website",
   },
 };
 

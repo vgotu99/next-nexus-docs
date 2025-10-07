@@ -12,9 +12,18 @@ export const metadata: Metadata = {
   openGraph: {
     title: "next-nexus",
     description: "Next.js를 위한 지능형 데이터 레이어",
+    url: "https://next-nexus.vercel.app/ko",
+    siteName: "Next-Nexus Docs",
     images: [
-      "https://raw.githubusercontent.com/vgotu99/next-nexus-docs/refs/heads/main/public/og.png",
+      {
+        url: "https://next-nexus.vercel.app/og.png",
+        width: 1200,
+        height: 630,
+        alt: "Next-Nexus Docs Open Graph Image",
+      },
     ],
+    locale: "ko_KR",
+    type: "website",
   },
 };
 
