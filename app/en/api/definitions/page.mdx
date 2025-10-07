@@ -5,7 +5,7 @@ description: Create consistent request definitions with createNexusDefinition.
 
 # Definitions
 
-`createNexusDefinition` lets you define requests in a single, predictable format that both server and client can use.
+`createNexusDefinition` lets you define requests in a single, predictable format that both the server and client can use.
 
 ## Import
 
@@ -13,11 +13,11 @@ description: Create consistent request definitions with createNexusDefinition.
 import { createNexusDefinition } from "next-nexus";
 ```
 
-> Important: In this project, definitions MUST be created via a factory. Direct, one-off calls to `createNexusDefinition<T>({...})` are not allowed.
+> **Important**: In this project, `definition` objects MUST be created via a factory. Direct, one-off calls to `createNexusDefinition<T>({...})` are not allowed.
 
-## Factory usage (required)
+## Factory Usage (Required)
 
-Create a factory with shared defaults, then derive domain definitions.
+Create a factory with shared defaults, then derive domain-specific `definition` objects from it.
 
 ```ts path=null start=null
 export const createApiDefinition = createNexusDefinition({
@@ -64,57 +64,52 @@ export const listWithTotalDefinition = createApiDefinition<Product[]>({
 })
 ```
 
-Notes:
+### Notes
 - Do not cache sensitive headers.
 - Headers are restored from the hydration payload without extra requests.
 
-## Options (overview)
+## Options
 
-- method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'
-- endpoint: string (path part)
-- baseURL?: string (preprends endpoint)
-- headers?: HeadersInit (merged; falsy string values like 'null'|'undefined' remove the header)
-- server?: `{ cache?: RequestCache; revalidate?: number; tags?: string[] }`
-- client?: `{ revalidate?: number; tags?: string[]; cachedHeaders?: string[] }`
-- timeout?: number (seconds)
-- retry?: `{ count: number; delay?: number }`
-- interceptors?: string[] (names registered via `interceptors.request/response.use`)
+- `method`: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'
+- `endpoint`: string (path part)
+- `baseURL?`: string (prepends endpoint)
+- `headers?`: HeadersInit (merged; falsy string values like `'null'` or `'undefined'` remove the header)
+- `server?`: `{ cache?: RequestCache; revalidate?: number; tags?: string[] }`
+- `client?`: `{ revalidate?: number; tags?: string[]; cachedHeaders?: string[] }`
+- `timeout?`: number (seconds)
+- `retry?`: `{ count: number; delay?: number }`
+- `interceptors?`: string[] (names registered via `interceptors.request/response.use`)
 
-## Defaults
+### Defaults
+- **`server.cache`**: If omitted, next-nexus defaults to `'no-store'` regardless of the Next.js version. Next.js 14 defaults to `'force-cache'`, while Next.js 15+ defaults to `'no-store'`. next-nexus keeps `'no-store'` as the default for consistency. Set `server.cache: 'force-cache'` explicitly only when you want static caching or ISR.
+- **Naming**: Use the `*Definition` suffix for clarity (e.g., `productDefinition`, `listWithTotalDefinition`).
 
-- server.cache: If omitted, next-nexus defaults to 'no-store' regardless of the Next.js version. Next.js 14 defaults to 'force-cache', and Next.js 15+ defaults to 'no-store'. next-nexus keeps 'no-store' by default for consistency. Set `server.cache: 'force-cache'` explicitly only when you want static caching or ISR.
-- Naming: Use the `*Definition` suffix for clarity (e.g., `productDefinition`, `listWithTotalDefinition`).
-
-## Typing
-
+### Typing
 - Prefer transport-oriented types: `Product`, `ProductListResponse`.
-- Generic response type flows into `nexus`, `useNexusQuery`, `useNexusMutation`, `nexusCache`.
-- For runtime schemas (e.g., Zod), derive TS types from the schema and keep names consistent (`ProductSchema` → `type Product = z.infer<...>`).
+- The generic response type flows into `nexus`, `useNexusQuery`, `useNexusMutation`, and `nexusCache`.
+- For runtime schemas (e.g., Zod), derive TypeScript types from the schema and keep names consistent (`ProductSchema` → `type Product = z.infer<...>`).
 
-## Patterns
+## Patterns and Anti-patterns
 
-- Dynamic definitions for parameterized endpoints (using the factory):
-
-```ts path=null start=null
-const detail = (id: string) =>
-  createApiDefinition<Product>({ method: "GET", endpoint: `/products/${id}` });
-```
-
+### Patterns
+- Create dynamic `definition` objects for parameterized endpoints by using the factory:
+  ```ts path=null start=null
+  const detail = (id: string) =>
+    createApiDefinition<Product>({ method: "GET", endpoint: `/products/${id}` });
+  ```
 - Cache small, safe response headers via `client.cachedHeaders` (e.g., `x-total-count`).
-- Use tags consistently to enable precise server/client revalidation.
+- Use `tags` consistently to enable precise server and client revalidation.
 
-## Anti-patterns
-
+### Anti-patterns
 - Mixing server-only APIs inside delegated subtrees.
-- Omitting tags then trying to revalidate precise slices later.
-- Defining requests without the shared factory (Default consistency and type safety vulnerability).
+- Omitting `tags` and then trying to revalidate precise slices of data later.
+- Defining requests without the shared factory, which can lead to inconsistency and type-safety issues.
 
-## Tips
-- Header merge: using string values 'null' or 'undefined' removes a header after merge.
-- Route proxy: when hooks pass `route`, runtime clears `baseURL` and uses the route path as endpoint.
+### Tips
+- **Header merging**: Using the string values `'null'` or `'undefined'` for a header will remove it after merging.
+- **Route proxying**: When hooks are passed a `route` prop, the runtime clears `baseURL` and uses the route path as the endpoint.
 
-## See also
-
+**See also**
 - [nexus](/en/api/nexus)
 - [Interceptors](/en/api/interceptors)
 - [Revalidation](/en/api/revalidation)

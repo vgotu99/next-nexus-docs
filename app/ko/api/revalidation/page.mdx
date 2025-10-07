@@ -1,51 +1,86 @@
 ---
-title: Revalidation
-description: 서버/클라이언트 캐시에 대한 태그 기반 재검증.
+title: 태그 기반 캐시 재검증
+description: revalidateServerTags와 revalidateClientTags를 사용해 서버 및 클라이언트 캐시를 태그 기준으로 무효화하는 방법을 알아보세요.
 ---
 
-# Revalidation
+# 태그 기반 재검증 (Revalidation)
 
-## 클라이언트
+next-nexus는 태그를 기반으로 캐시된 데이터를 무효화하는 함수를 제공하여, 뮤테이션 발생 후 UI가 데이터 소스와 동기화된 상태를 유지하도록 보장합니다.
+
+## 핵심 개념 (Core Concept)
+
+Next.js 데이터 캐시(서버 컴포넌트용)와 next-nexus 클라이언트 캐시(클라이언트 컴포넌트용)는 모두 태그 시스템을 사용합니다. `definition`을 생성할 때 하나 이상의 태그를 연결할 수 있습니다. 나중에 이 태그들을 "재검증(revalidate)"하면, 해당 태그와 연결된 모든 캐시 데이터가 '만료(stale)' 상태로 표시됩니다.
+
+- **서버**에서는 다음 요청 시 Next.js가 데이터를 다시 가져옵니다.
+- **클라이언트**에서는 해당 데이터를 구독하는 모든 `useNexusQuery` 훅이 자동으로 데이터를 다시 가져옵니다.
+
+## 서버 사이드 재검증
+
+### `revalidateServerTags`
+서버 액션 또는 라우트 핸들러 내에서 이 함수를 사용하여 Next.js 데이터 캐시의 항목을 무효화합니다.
+
+**Import**
 ```ts path=null start=null
-import { revalidateClientTags } from 'next-nexus/client'
-revalidateClientTags(['products'])
+import { revalidateServerTags } from 'next-nexus';
 ```
 
-## 서버
+**시그니처 (Signature)**
 ```ts path=null start=null
-'use server'
-import { revalidateServerTags } from 'next-nexus/server'
-await revalidateServerTags(['products', 'product:123'])
+revalidateServerTags(tags: string[]): Promise<void>
 ```
 
-## 참고
-- 태그는 정규화됩니다(공백 제거/중복 제거/정렬). 빈 태그나 잘못된 태그는 예외를 발생시킵니다.
-- 서버는 내부적으로 `revalidateTag`를 호출하며, 개발 모드에서는 로그가 출력됩니다.
+## 클라이언트 사이드 재검증
 
-## 베스트 프랙티스
-- 넓은 범위 태그(예: `['posts']`)를 기본으로, 필요 시 세부 태그(예: `['post:123']`)를 함께 사용.
-- 서버에서 콘텐츠를 변경했다면 서버 액션/핸들러에서 `revalidateServerTags` 호출.
-- 클라이언트 UX를 즉시 갱신하려면 onSuccess에서 `revalidateClientTags`를 병행.
+### `revalidateClientTags`
+클라이언트 사이드 코드에서, 주로 `useNexusMutation`의 `onSuccess` 콜백 내에서 사용하여 클라이언트 캐시의 항목을 무효화합니다.
 
-## 주의점
-- 빈 태그나 공백만 있는 태그는 예외 발생.
-- 정의에 태그를 일관되게 부여하지 않으면 재검증이 의도한 엔트리를 찾지 못합니다.
+**Import**
+```ts path=null start=null
+import { revalidateClientTags } from 'next-nexus/client';
+```
 
-## 조합 예시
+**시그니처 (Signature)**
+```ts path=null start=null
+revalidateClientTags(tags: string[]): void
+```
+
+## 전체 워크플로우 예제
+
+성공적인 뮤테이션 후 두 재검증 함수를 모두 호출하여 서버 렌더링 데이터와 클라이언트 렌더링 데이터가 모두 업데이트되도록 보장하는 것이 일반적인 패턴입니다.
+
 ```tsx path=null start=null
-'use client'
-import { revalidateClientTags } from 'next-nexus/client'
-import { revalidateServerTags } from 'next-nexus/server'
+// 1. 서버 액션 파일
+import { revalidateServerTags } from 'next-nexus';
 
-export function Save({ id }: { id: string }) {
-  async function action() {
-    'use server'
-    // 쓰기...
-    await revalidateServerTags(['posts', `post:${id}`])
-  }
+export async function updateUserAction(formData: FormData) {
+  'use server';
+  // ... 데이터베이스에서 사용자 정보 업데이트
+  await revalidateServerTags(['users', `user:${id}`]);
+  return { success: true };
+}
 
-  // 클라이언트 onSuccess
-  const onSuccess = () => revalidateClientTags(['posts', `post:${id}`])
+// 2. 클라이언트 컴포넌트
+import { useNexusFormAction, revalidateClientTags } from 'next-nexus/client';
+import { updateUserAction } from './actions';
+
+export function UserForm() {
+  const { formAction } = useNexusFormAction(updateUserAction, {
+    onSuccess: () => {
+      // 서버 액션이 성공한 후 클라이언트 캐시 재검증
+      revalidateClientTags(['users']);
+    },
+  });
+
+  return <form action={formAction}>{/* ... */}</form>;
 }
 ```
 
+## 베스트 프랙티스 (Best Practices)
+
+- **일관성 유지**: 재검증하는 태그가 `definition` 객체에 정의된 태그와 일치하는지 확인하세요.
+- **적절한 범위 사용**: 목록 전체를 위한 넓은 범위의 태그(예: `['posts']`)와 개별 항목을 위한 구체적인 태그(예: `['posts', 'post:123']`)를 함께 사용하세요. 이를 통해 광범위한 재검증과 특정 대상 재검증이 모두 가능해집니다.
+- **유효하지 않은 태그 방지**: 빈 태그나 공백만 있는 태그는 오류를 발생시킵니다.
+
+**함께 보기**
+- [Definitions](/ko/api/definitions)
+- [useNexusMutation](/ko/api/hooks/use-nexus-mutation)

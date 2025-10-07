@@ -1,95 +1,124 @@
-# useNexusInfiniteQuery (클라이언트)
+---
+title: 'useNexusInfiniteQuery: 무한 스크롤'
+description: 커서 기반 및 페이지 기반 로딩을 지원하는 useNexusInfiniteQuery로 무한 스크롤 또는 페이지네이션 UI를 구현하는 방법을 알아보세요.
+---
 
-정의 팩토리와 간결한 옵션으로 무한 스크롤/페이지네이션 UI를 구축합니다.
+# `useNexusInfiniteQuery`
 
-## 시그니처
-- import: `import { useNexusInfiniteQuery } from 'next-nexus/client'`
-- 매개변수:
-  - `getDefinition(param) => NexusDefinition<TPage>` — 페이지 파라미터에 맞는 GET 정의 팩토리
-  - `options` — 아래 참고
-- 반환: `{ data: { pages, pageParams } | undefined, headers, error, isPending, isPendingBackground, isSuccess, isError, hasNextPage, revalidateNext, prefetchRef? }`
+`useNexusInfiniteQuery`는 '무한 스크롤' 또는 '더 보기' UI를 구축하기 위한 클라이언트 사이드 훅입니다. 페이지 파라미터, 데이터 페칭, 상태 집계를 관리합니다.
 
-## 옵션
-- `initialPageParam` — 첫 페이지 파라미터(null/0 등)
-- `getNextPageParam(lastPage, pages) => param | null` — null이면 종료
-- `keepPages` — 최근 N개 페이지만 유지(메모리 상한)
-- `revalidateOnMount`(기본: true)
-- `revalidateOnWindowFocus`(기본: false)
-- `keepStaleData`(기본: true)
-- `prefetchNextOnNearViewport` — `{ rootMargin?: string, threshold?: number }`; IntersectionObserver로 뷰포트 근접 시 다음 페이지 선패치
+## Import
 
-## 정의 팩토리
+```ts path=null start=null
+import { useNexusInfiniteQuery } from 'next-nexus/client';
+```
+
+## 핵심 개념 (Core Concepts)
+
+### 동작 방식
+이 훅은 페이지 파라미터(예: 커서 또는 페이지 번호)를 인자로 받는 `definition` 팩토리 함수를 사용합니다. 이 함수를 순차적으로 호출하여 각 페이지를 가져옵니다. 사용자는 마지막으로 성공한 페이지의 데이터로부터 *다음* 페이지의 파라미터를 가져오는 방법을 알려주는 `getNextPageParam` 함수를 반드시 제공해야 합니다.
+
+### Foreground/Background 재검증
+각 페이지의 재검증 로직은 `useNexusQuery`와 동일합니다. 새 페이지를 가져오거나(`revalidateNext`) 기존 페이지를 다시 가져올 때(`revalidatePage`):
+- **Foreground**: 페이지에 대한 캐시된 데이터가 없거나, `keepStaleData`가 `false`이고 데이터가 만료(stale)된 경우. 이 때 `isPending` 상태가 됩니다.
+- **Background**: 만료된 데이터가 있고 `keepStaleData`가 `true`인 경우. 이 때 `isPendingBackground` 상태가 됩니다.
+
+### 상태 플래그와 UX
+- **`isPending`**: Foreground 페칭 중에 `true`가 됩니다. 초기 로딩 시 스켈레톤 UI나 '더 보기' 버튼의 스피너와 같은 주요 로딩 상태를 표시하는 데 사용하세요.
+- **`isPendingBackground`**: Background 페칭 중에 `true`가 됩니다.
+- **`hasNextPage`**: 마지막 페이지에 대해 `getNextPageParam` 함수가 `null` 또는 `undefined`가 아닌 값을 반환했을 때 `true`가 됩니다.
+
+## 시그니처 (Signature)
+
+### 파라미터 (Parameters)
+- **`getDefinition`**: `(param) => NexusDefinition<TPage>` — 현재 페이지 파라미터를 받아 `GET` `definition`을 반환하는 팩토리 함수.
+- **`options`**: 훅의 동작을 설정하는 객체. 아래 [Options](#options)를 참고하세요.
+
+### 반환 값 (Return Value)
+다음을 포함하는 객체:
+- `data`: `{ pages: TPage[], pageParams: unknown[] } | undefined`
+- `headers`: `Headers | undefined` (가장 최근 요청의 헤더)
+- `error`: `Error | null`
+- `isPending`, `isPendingBackground`, `isSuccess`, `isError`: `boolean`
+- `hasNextPage`: `boolean`
+- `revalidateNext`: `() => Promise<void>` (다음 페이지를 가져옴)
+- `prefetchRef?`: `React.Ref<HTMLDivElement>` (선패치를 활성화하기 위한 sentinel 엘리먼트의 ref)
+
+## Options
+
+- **`initialPageParam`**: 가장 첫 페이지의 파라미터 (예: 페이지 번호는 `0`, 커서 기반은 `null`).
+- **`getNextPageParam`**: `(lastPage: TPage, allPages: TPage[]) => param | null | undefined` — 다음 페이지의 파라미터를 반환하는 함수. `null` 또는 `undefined`를 반환하면 마지막 페이지임을 나타냅니다.
+- **`keepPages?`**: `number` - 설정된 경우, 메모리 사용량을 제한하기 위해 가장 최근 N개의 페이지만 메모리에 유지합니다.
+- **`revalidateOnMount?`**: `boolean` (기본값: `true`)
+- **`revalidateOnWindowFocus?`**: `boolean` (기본값: `false`)
+- **`keepStaleData?`**: `boolean` (기본값: `true`)
+- **`prefetchNextOnNearViewport?`**: `{ rootMargin?: string, threshold?: number }` - sentinel 엘리먼트가 뷰포트 근처에 있을 때 다음 페이지를 선패치(prefetch)합니다.
+
+## 예제 (Example)
+
+### 1. Definition 팩토리
+먼저, 커서와 같은 페이지 파라미터를 받는 `definition`을 만듭니다.
 
 ```ts path=null start=null
 // src/api/productDefinition.ts (일부)
-export interface InfiniteProduct { products: { id: string; name: string }[]; nextCursor?: string | null }
+export interface InfiniteProduct {
+  products: { id: string; name: string }[];
+  nextCursor?: string | null;
+}
 
 export const productDefinition = {
   infiniteList: (cursor: string | null) =>
-    createDefinition<InfiniteProduct>({
-      method: 'GET',
-      endpoint: cursor ? `/products?cursor=${cursor}` : '/products',
-      client: { tags: ['products', `cursor:${cursor ?? 'first'}`], revalidate: 300 },
+    createApiDefinition<InfiniteProduct>({
+      method: "GET",
+      endpoint: cursor ? `/products?cursor=${cursor}` : "/products",
+      client: {
+        tags: ["products", `cursor:${cursor ?? "first"}`],
+        revalidate: 300,
+      },
     }),
 };
 ```
 
-## 사용 예시
+### 2. 컴포넌트 사용법
+그 다음, 컴포넌트에서 훅을 사용합니다.
 
 ```tsx path=null start=null
-'use client';
-import { useNexusInfiniteQuery } from 'next-nexus/client';
-import { productDefinition } from '@/api/productDefinition';
+"use client";
+import { useNexusInfiniteQuery } from "next-nexus/client";
+import { productDefinition } from "@/api/productDefinition";
 
 export default function InfiniteProductList() {
   const { data, hasNextPage, revalidateNext, prefetchRef, isPending } =
     useNexusInfiniteQuery(productDefinition.infiniteList, {
       initialPageParam: null,
-      getNextPageParam: last => last?.nextCursor ?? null,
-      keepPages: 5,
-      prefetchNextOnNearViewport: { rootMargin: '200px', threshold: 0 },
+      getNextPageParam: (lastPage) => lastPage?.nextCursor ?? null,
+      prefetchNextOnNearViewport: { rootMargin: "200px" },
     });
 
-  const all = data?.pages.flatMap(p => p.products) ?? [];
+  const allProducts = data?.pages.flatMap((page) => page.products) ?? [];
 
   return (
     <div>
-      <ul>{all.map(p => <li key={p.id}>{p.name}</li>)}</ul>
-      <button onClick={() => revalidateNext()} disabled={!hasNextPage || isPending}>
-        {isPending ? '로딩 중…' : '더 불러오기'}
+      <ul>
+        {allProducts.map((p) => (
+          <li key={p.id}>{p.name}</li>
+        ))}
+      </ul>
+      
+      <button
+        onClick={() => revalidateNext()}
+        disabled={!hasNextPage || isPending}
+      >
+        {isPending ? "로딩 중…" : "더 보기"}
       </button>
-      {/* 뷰포트 근접 시 prefetch를 위한 센티넬 */}
+
+      {/* 옵션: 선패치를 위한 sentinel 엘리먼트 */}
       <div ref={prefetchRef} style={{ height: 1 }} />
     </div>
   );
 }
 ```
 
-## 팁
-- keepPages로 메모리 사용량을 제한하세요.
-- 캐시 재사용을 극대화하려면 페이지 크기는 작고 페이로드는 간결하게 유지하세요.
-- getNextPageParam은 주어진 lastPage에 대해 결정론적으로 동작해야 합니다.
-
-## 전경/배경 동작(revalidateNext/revalidatePage)
-
-페이지 파라미터마다 단일 쿼리 훅과 동일한 규칙으로 모드를 결정합니다.
-- 해당 페이지의 캐시 엔트리가 없음 → 전경(foreground)
-- 캐시 엔트리가 있고 만료됨 →
-  - `keepStaleData=true`이면 배경(background)
-  - `keepStaleData=false`이면 전경(foreground)
-- 캐시 엔트리가 신선함 → `revalidatePage`는 캐시 데이터를 즉시 append하고 페치를 건너뛸 수 있음
-
-동작 상세
-- `revalidatePage(param)`은 캐시가 있고 `keepStaleData=true`일 때 먼저 캐시 페이지를 즉시 append한 뒤, 만료 상태면 선택된 모드로 페치합니다(부드러운 배경 프리패치).
-- `revalidateNext()`는 다음 파라미터를 계산해 `revalidatePage`를 호출하므로 동일한 규칙이 적용됩니다.
-
-## 상태 플래그와 UX 매핑
-
-- 전경 패치 → `pendingCount` 증가 → `isPending=true`, `isPendingBackground=false`
-  - “더 불러오기”를 비활성화하고 눈에 보이는 진행 표시를 보여주세요.
-- 배경 패치 → `pendingBackgroundCount` 증가 → `isPending=false`, `isPendingBackground=true`
-  - 리스트를 안정적으로 유지하세요. 필요 시 가벼운 진행 표시만 사용하세요. 뷰포트 근접 배경 프리패치에는 `prefetchRef`가 적합합니다.
-
-가이드
-- `isPending`인 동안 “더 불러오기” 버튼을 비활성화하세요.
-- `prefetchRef`를 사용해 다음 페이지를 배경으로 선패치하여 UI 변화를 최소화하세요.
+**함께 보기**
+- [useNexusQuery](/ko/api/hooks/use-nexus-query)
+- [Definitions](/ko/api/definitions)

@@ -5,22 +5,24 @@ description: A 2‑minute overview of next‑nexus from server fetch to client h
 
 # Lifecycle
 
-Quick mental model of how data flows through next‑nexus.
+A quick mental model of how data flows through next‑nexus.
 
-> Prerequisites: use factory definitions only, set up NexusRuntime in the root layout, and wrap data‑fetching segments with NexusHydrationBoundary (or export pages with withNexusHydrationBoundary). See /en/getting-started and /en/api/definitions.
+> **Prerequisites:** Use factory definitions only, set up `NexusRuntime` in the root layout, and wrap data-fetching segments with `NexusHydrationBoundary` (or export pages with `withNexusHydrationBoundary`). See [/en/getting-started](/en/getting-started) and [/en/api/definitions](/en/api/definitions) for details.
 
 ## At a glance
-1) Define endpoints with factories (base key comes from definition).
-2) Server (RSC) renders and calls `nexus(...)` where needed; response headers and payload are collected.
-3) Hydration: collected entries are serialized to the client via NexusHydrationBoundary.
-4) Client mounts; NexusRuntime hydrates and restores entries.
-5) Read data: on the server use `nexus(...)`; on the client use `useNexusQuery`.
-6) Write data: `useNexusMutation`, `useNexusAction`, or `useNexusFormAction`; then revalidate via tags.
-7) Cache, `revalidate`, and tags map directly to Next.js request cache and ISR.
-8) Errors are normalized; detect with `isNexusError`.
-9) Debugging can print request/cache events in dev.
+
+1. Define endpoints with factories (the cache key comes from the `definition`).
+2. The server (RSC) renders and calls `nexus(...)` where needed; response headers and payload are collected.
+3. **Hydration**: The collected entries are serialized to the client via `NexusHydrationBoundary`.
+4. The client mounts; `NexusRuntime` hydrates the cache with the restored entries.
+5. **Reading data**: On the server use `nexus(...)`; on the client use `useNexusQuery`.
+6. **Writing data**: Use `useNexusMutation`, `useNexusAction`, or `useNexusFormAction`, then revalidate via `tags`.
+7. `cache`, `revalidate`, and `tags` map directly to the Next.js request cache and ISR.
+8. Errors are normalized; detect them with `isNexusError`.
+9. Debugging logs can print request/cache events in dev mode.
 
 ## One diagram
+
 ```text path=null start=null
 Route/navigation
    ↓
@@ -34,12 +36,11 @@ Mutations/Actions ──▶ revalidate tags ──▶ re-fetch where subscribed
 ```
 
 ## What runs where
-- Server: read inbound headers, perform `nexus(...)` in RSC, collect hydration entries.
-- Client: restore hydration, run hooks, optionally access cached response headers.
+
+- **Server**: Reads inbound headers, performs `nexus(...)` in RSC, collects hydration entries.
+- **Client**: Restores hydration data, runs hooks, optionally accesses cached response headers.
 
 ## Next
+
 - Start with Reading Data → [/en/core-concepts/reading-data](/en/core-concepts/reading-data)
 - Then Writing Data → [/en/core-concepts/writing-data](/en/core-concepts/writing-data)
-
-See also deep dives: Automatic Hydration, RSC Request Interception, Cache Keys/Tags/TTL, ETag Logic, Interceptors.
-

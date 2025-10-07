@@ -1,56 +1,89 @@
 ---
-title: nexusCache
-description: 고급 사용 사례를 위한 클라이언트 캐시 직접 접근.
+title: 'nexusCache: 직접 캐시 접근'
+description: 클라이언트 사이드 캐시에 직접, 동기적으로 접근하기 위한 유틸리티입니다.
 ---
 
-# nexusCache
+# `nexusCache`
+
+`nexusCache`는 클라이언트 사이드 캐시에 직접, 동기적으로 접근해야 하는 고급 사용 사례를 위한 유틸리티입니다.
+
+## Import
 
 ```ts path=null start=null
-import { nexusCache } from 'next-nexus/client'
-import { productDefinition } from '@/api/productDefinition'
-
-const cache = nexusCache(productDefinition.list)
-
-const current = cache.get()
-cache.set(prev => (prev ? [...prev] : prev))
-cache.invalidate()
-const unsubscribe = cache.subscribe(data => { /* 변경 감지 */ })
+import { nexusCache } from "next-nexus/client";
 ```
 
-> 제한 사항
-> - GET 전용입니다. GET이 아닌 Definition으로 호출하면 예외가 발생합니다: "nexusCache only supports GET definitions".
-> - 광범위한 갱신은 태그 재검증을 우선하세요. `nexusCache`는 낙관적 UI 등 고급 사례에만 사용하세요.
+## 핵심 개념 (Core Concepts)
 
-## 낙관적 업데이트 패턴
+### 직접 캐시 접근
+
+`nexusCache`는 특정 `GET` `definition`에 대한 캐시 엔트리를 동기적으로 읽고 쓸 수 있는 핸들(handle)을 반환합니다.
+
+### 언제 사용하나요?
+
+주로 낙관적 업데이트(optimistic updates)와 같이 서버가 변경을 확인하기 전에 UI를 즉시 업데이트하고 싶은 복잡한 패턴을 구현하기 위해 사용됩니다. 대부분의 다른 경우, 예를 들어 뮤테이션 후 데이터를 다시 가져오는 상황에서는 에러 발생 가능성이 적은 `revalidateClientTags`를 사용하는 것이 좋습니다.
+
+### 제한 사항
+
+- **GET 전용**: `nexusCache`는 `GET` `definition`만 지원합니다. `GET`이 아닌 `definition`으로 호출하면 오류가 발생합니다.
+- **고급 사용 사례 전용**: 수동 캐시 조작은 강력하지만, 클라이언트 UI와 서버 상태 간의 불일치를 쉽게 유발할 수 있습니다. 가능한 모든 곳에서 태그 기반 재검증을 우선적으로 사용하세요.
+
+## API
+
+`const cache = nexusCache(definition)`가 주어졌을 때, 다음 메서드를 사용할 수 있습니다:
+
+- **`get(): T | undefined`**: 현재 캐시된 데이터를 반환합니다. 없으면 `undefined`를 반환합니다.
+- **`set(updater: (old: T | undefined) => T): void`**: 캐시 엔트리를 업데이트합니다. `updater` 함수는 이전 상태를 받아 새 상태를 반환해야 합니다.
+- **`remove(): void`**: 캐시에서 해당 엔트리를 제거합니다.
+- **`invalidate(): void`**: 캐시 엔트리를 '만료(stale)' 상태로 표시합니다. 다음 `useNexusQuery` 렌더링 시 재검증(refetch)을 트리거합니다.
+- **`isStale(): boolean`**: 엔트리가 '만료' 상태이면 `true`를 반환합니다.
+- **`subscribe(fn: (data: T | undefined) => void): () => void`**: 캐시 엔트리의 변경 사항을 구독합니다. `unsubscribe` 함수를 반환합니다.
+
+## 예제: 낙관적 업데이트 (Optimistic Updates)
+
+이 예제에서는 새 할 일이 생성될 때, `useNexusMutation`의 `onStart` 콜백을 사용해 캐시된 목록에 임시 항목을 즉시 추가합니다. 만약 뮤테이션이 실패하면 `onError`에서 변경 사항을 롤백합니다.
+
 ```tsx path=null start=null
-'use client'
-import { useNexusMutation } from 'next-nexus/client'
-import { nexusCache } from 'next-nexus/client'
-import { todosDefinition } from '@/definitions'
+"use client";
+import {
+  useNexusMutation,
+  nexusCache,
+  revalidateClientTags,
+} from "next-nexus/client";
+import { todosDefinition } from "@/definitions";
 
 export function AddTodo() {
-  const listCache = nexusCache(todosDefinition.list)
-  const { mutate, isPending } = useNexusMutation(
-    (input: { title: string }) => todosDefinition.create(input),
-    {
-      onStart: (input) => {
-        listCache.set(prev => (prev ? [{ id: '__temp__', title: input.title }, ...prev] : prev))
-      },
-      onError: () => {
-        // 롤백: 무효화 또는 임시 항목 제거
-        listCache.invalidate()
-      },
-    }
-  )
-  return <button onClick={() => mutate({ title: 'New' })} disabled={isPending}>Add</button>
+  const listCache = nexusCache(todosDefinition.list);
+
+  const { mutate, isPending } = useNexusMutation(todosDefinition.create, {
+    onStart: (input) => {
+      // 목록에 임시 항목을 즉시 추가
+      listCache.set((prev) =>
+        prev ? [{ id: "__temp__", title: input.title }, ...prev] : prev
+      );
+    },
+    onSuccess: () => {
+      // 성공적인 뮤테이션은 실제 데이터를 가져오기 위해 재검증을 트리거해야 함
+      revalidateClientTags(["todos"]);
+    },
+    onError: () => {
+      // 뮤테이션이 실패하면, 캐시를 무효화하여 낙관적 업데이트를 롤백
+      listCache.invalidate();
+    },
+  });
+
+  return (
+    <button
+      onClick={() => mutate({ title: "새로운 할 일" })}
+      disabled={isPending}
+    >
+      추가
+    </button>
+  );
 }
 ```
 
-## API
-- get(): T | undefined
-- set(updater: (old: T | undefined) => T): void
-- remove(): void
-- invalidate(): void
-- isStale(): boolean
-- subscribe(fn: (data: T | undefined) => void): () => void
+**함께 보기**
 
+- [useNexusMutation](/ko/api/hooks/use-nexus-mutation)
+- [재검증 (Revalidation)](/ko/api/revalidation)

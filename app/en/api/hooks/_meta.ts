@@ -3,7 +3,7 @@ const meta = {
   "use-nexus-infinite-query": "useNexusInfiniteQuery",
   "use-nexus-mutation": "useNexusMutation",
   "use-nexus-action": "useNexusAction",
-  "use-nexus-form-action": "UseNexusFormAction",
+  "use-nexus-form-action": "useNexusFormAction",
 };
 
 export default meta;

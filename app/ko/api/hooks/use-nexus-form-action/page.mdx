@@ -1,36 +1,85 @@
 ---
-title: useNexusFormAction
-description: 서버 액션을 HTML 폼과 통합하는 클라이언트 헬퍼.
+title: 'useNexusFormAction: 폼 기반 서버 액션'
+description: 서버 액션을 HTML 폼과 통합하는 클라이언트 헬퍼 훅입니다.
 ---
 
-# useNexusFormAction
+# `useNexusFormAction`
 
-임포트:
+`useNexusFormAction`은 서버 액션을 HTML 폼 액션으로 간단하게 사용하기 위한 클라이언트 사이드 훅입니다. React의 표준 `useFormState` 훅을 기반으로 만들어졌으며, `pending`/`success`/`error` 상태와 생명주기 콜백을 추가로 제공합니다.
+
+## Import
+
 ```ts path=null start=null
-import { useNexusFormAction } from 'next-nexus/client'
+import { useNexusFormAction } from 'next-nexus/client';
 ```
 
-## 개요
-- `<form action={formAction}>` 패턴으로 서버 액션과 연동됩니다.
-- `isPending`, `isSuccess`, `isError`, `result`, `error`, `reset` 제공.
+## 핵심 개념 (Core Concepts)
 
-## 예제
+### 언제 사용하나요?
+HTML `<form>`을 점진적으로 향상시키고 싶을 때 이 훅을 사용하세요. 서버 액션을 통해 폼을 제출할 수 있게 해주며, 최소한의 클라이언트 사이드 자바스크립트로 훌륭한 사용자 경험을 제공합니다. Next.js에서 서버 액션으로 폼 제출을 처리하는 가장 권장되는 방법입니다.
+
+### 동작 방식
+서버 액션을 훅에 전달하면, `<form action={formAction}>` 속성에 직접 전달할 `formAction` 함수를 반환합니다. 이 훅은 `pending` 상태와 서버 액션에서 반환된 결과를 포함하여 폼의 상태를 관리합니다.
+
+## 시그니처 (Signature)
+
+### 파라미터 (Parameters)
+- **`serverAction`**: `(formData: FormData) => Promise<TResult>` — 폼 제출 시 실행될 서버 액션. `FormData`를 자동으로 받습니다.
+- **`options?`**: 생명주기 콜백을 설정하는 선택적 객체.
+
+### 반환 값 (Return Value)
+다음을 포함하는 객체:
+- `formAction`: `(payload: FormData) => void` — `<form>`의 `action` 속성에 전달할 함수.
+- `isPending`: `boolean`
+- `isSuccess`: `boolean`
+- `isError`: `boolean`
+- `result`: `TResult | undefined`
+- `error`: `Error | null`
+- `reset`: `() => void`
+
+## Options
+- **`onStart?`**: `(formData: FormData) => void | Promise<void>`
+- **`onSuccess?`**: `(result: TResult, formData: FormData) => void | Promise<void>`
+- **`onError?`**: `(error: Error, formData: FormData) => void | Promise<void>`
+- **`onSettled?`**: `(result?: TResult, error?: Error, formData: FormData) => void | Promise<void>`
+
+## 예제 (Example)
+이 예제는 서버 액션을 사용하여 새 상품을 생성하는 간단한 폼을 보여줍니다. `isPending` 상태는 제출 중에 버튼을 비활성화하는 데 사용됩니다.
+
 ```tsx path=null start=null
 'use client'
 import { useNexusFormAction } from 'next-nexus/client'
+import { revalidateServerTags } from 'next-nexus'
+import { revalidateClientTags } from 'next-nexus/client'
+
+// 이 액션은 app/actions.ts와 같은 별도 파일에 있다고 가정합니다.
+async function createProductAction(formData: FormData) {
+  'use server'
+  const name = formData.get('name') as string;
+  // ... 상품을 생성하는 데이터베이스 로직
+  await revalidateServerTags(['products']);
+  return { ok: true, productName: name };
+}
 
 export default function ProductForm() {
-  const { formAction, isPending, isSuccess } = useNexusFormAction(async (formData: FormData) => {
-    'use server'
-    return { ok: true }
-  })
+  const { formAction, isPending, isSuccess, result } = useNexusFormAction(createProductAction, {
+    onSuccess: () => {
+      revalidateClientTags(['products']);
+    }
+  });
 
   return (
     <form action={formAction}>
-      <input name="name" />
-      <button type="submit" disabled={isPending}>저장</button>
-      {isSuccess && <div>저장되었습니다!</div>}
+      <input name="name" placeholder="상품명" required />
+      <button type="submit" disabled={isPending}>
+        {isPending ? '저장 중...' : '저장'}
+      </button>
+      {isSuccess && <div>상품 "{result?.productName}"이(가) 저장되었습니다!</div>}
     </form>
-  )
+  );
 }
 ```
+
+**함께 보기**
+- [useNexusAction](/ko/api/hooks/use-nexus-action)
+- [서버 액션 (Next.js 공식 문서)](https://nextjs.org/docs/app/building-your-application/data-fetching/server-actions-and-mutations)

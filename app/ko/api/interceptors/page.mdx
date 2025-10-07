@@ -1,42 +1,63 @@
 ---
-title: Interceptors
-description: 요청/응답 라이프사이클을 확장하는 이름 기반 인터셉터.
+title: 'interceptors: 요청/응답 라이프사이클 훅'
+description: 서버/클라이언트에서 이름 기반 인터셉터를 등록하고 definition에 적용하여 요청 및 응답 라이프사이클을 확장하는 방법을 알아보세요.
 ---
 
 # Interceptors
 
-## 등록
+`interceptor`를 사용하면 요청이 만들어지기 전이나 응답을 받은 후에 코드를 실행할 수 있습니다. 인증 토큰 추가, 로깅, 응답 변환과 같은 공통 로직을 중앙에서 관리하는 데 유용합니다.
 
+## Import
 ```ts path=null start=null
 import { interceptors } from "next-nexus";
+```
 
+## Interceptor 등록하기
+
+`interceptor`는 전역으로 등록되며, 고유한 이름으로 식별됩니다.
+
+```ts path=null start=null
+// 보통 중앙 설정 파일에서 등록합니다.
+
+// 요청 헤더에 인증 정보를 추가하는 요청 인터셉터
 interceptors.request.use("auth", async (config) => {
   const headers = new Headers(config.headers);
   headers.set("authorization", "Bearer <token>");
   return { ...config, headers };
 });
 
-interceptors.response.use("timing", async (res) => res);
+// 로깅을 위한 응답 인터셉터
+interceptors.response.use("timing", async (res, req) => {
+  console.log(`'${req.endpoint}' 요청에 ${res.headers.get('X-Response-Time')} 소요됨`);
+  return res;
+});
 ```
 
-## Definition별 적용(팩토리 함수 사용)
+## Interceptor 적용하기
+
+등록된 `interceptor`를 요청에 적용하려면, `definition`의 `interceptors` 배열에 해당 이름을 추가합니다.
 
 ```ts path=null start=null
-import { createNexusDefinition } from "next-nexus";
+import { createNexusDefinition } from 'next-nexus'
 
 export const createApiDefinition = createNexusDefinition({
   baseURL: 'https://api.example.com',
 });
 
+// 이 definition은 'auth'와 'timing' 인터셉터를 실행합니다.
 const definition = createApiDefinition<{ items: unknown[] }>({
-  method: "GET",
-  endpoint: "/protected",
-  interceptors: ["auth", "timing"],
+  method: 'GET',
+  endpoint: '/protected',
+  interceptors: ['auth', 'timing'],
 });
 ```
 
-## 참고
-- 실행 순서: 등록된 순서대로 실행됩니다.
-- 범위: 서버 전용 로직은 서버에, 클라이언트 전용 로직은 클라이언트에 유지하세요.
-- 오류: 인터셉터에서 throw하면 요청이 실패하며 `NexusError`로 전파됩니다.
-- 이름 직렬화: 인터셉터 이름은 RSC 경계를 안전하게 넘길 수 있도록 직렬화됩니다.
+## 참고 (Notes)
+
+- **실행 순서**: `interceptors` 배열에 나열된 순서대로 실행됩니다.
+- **스코프 (Scope)**: 서버 전용 코드와 클라이언트 전용 코드를 주의해서 다루세요. 서버 전용 모듈(예: Node.js 라이브러리)을 사용하는 `interceptor`는 클라이언트에서 실행되는 `definition`에 사용되어서는 안 됩니다.
+- **오류 (Errors)**: `interceptor` 내에서 오류를 던지면(throw) 요청이 실패하고 `NexusError`가 전파됩니다.
+- **직렬화 (Serialization)**: `interceptor` 이름은 직렬화되므로, RSC의 서버-클라이언트 경계를 넘어 안전하게 동작합니다.
+
+**함께 보기**
+- [Definitions](/ko/api/definitions)

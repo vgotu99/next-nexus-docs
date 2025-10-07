@@ -1,11 +1,25 @@
 ---
-title: NexusRuntime
-description: Initializes the client-side cache and enables next-nexus features.
+title: 'NexusRuntime: Client Runtime & Hydration Receiver'
+description: Learn how to initialize the client runtime, apply hydration payloads, and publish client cache metadata during RSC requests.
 ---
 
-# NexusRuntime
+# `NexusRuntime`
 
-A client-only component that boots the runtime needed for client-side caching and hydration.
+`NexusRuntime` is a client-only component that is essential for the client-side functionality of next-nexus. It should be placed once in your root layout.
+
+## Core Concepts
+
+### Client-Side Cache Initialization
+The component initializes the in-memory LRU cache used by all client-side hooks (`useNexusQuery`, `useNexusMutation`, etc.). This cache is what makes client-side state management and revalidation possible.
+
+### Hydration Receiver
+`NexusRuntime` is responsible for receiving the hydration payload serialized by `NexusHydrationBoundary`. When the client-side application mounts, this component applies the payload, "hydrating" the client cache with the data that was already fetched on the server. This ensures a seamless transition from server-rendered content to an interactive client-side application without refetching data.
+
+### RSC Request Integration
+During client-side navigations (RSC requests), `NexusRuntime` automatically intercepts `fetch` calls to add cookies containing metadata about the client's cache state (`__NEXUS_CLIENT_CACHE__`). This allows the server to make intelligent decisions, such as:
+- Skipping hydration for data the client already has (based on ETag).
+- Instructing the client to extend the TTL for not-modified cache entries.
+This process is key to features like Rendering Delegation with `NexusRenderer`.
 
 ## Import
 
@@ -13,14 +27,8 @@ A client-only component that boots the runtime needed for client-side caching an
 import { NexusRuntime } from 'next-nexus/client';
 ```
 
-## Role
-- Initializes the client in-memory cache (LRU) used by hooks like `useNexusQuery`.
-- Applies hydration payload sent from the server to prime the client cache.
-- Add client cache metadata during RSC fetches so the server can make optimal decisions (e.g., skip hydration on ETag match, extend TTL for not‑modified keys).
-- Provides the runtime primitives that hooks rely on to decide foreground vs background revalidation based on cache freshness and the `keepStaleData` option. Mode selection itself happens inside the hooks, not in NexusRuntime.
-
 ## Usage
-Insert once in the root layout, near the closing `</body>`. Do not add to nested layouts.
+Insert `NexusRuntime` once in your root layout (`app/layout.tsx`), just before the closing `</body>` tag.
 
 ```tsx path=null start=null
 // app/layout.tsx
@@ -37,23 +45,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   );
 }
 ```
-
-Notes
-- Install exactly once globally. Do not add to nested layouts.
-- Keep it inner `</body>` so the runtime mounts after your page tree.
+**Important**: Do not add this component to nested layouts or any other component. It must be installed exactly once, globally.
 
 ## Props
-- `maxSize?: number` — Maximum number of entries for the client LRU cache. Default: 200.
+- **`maxSize?`**: `number` (default: `200`) — The maximum number of entries for the client-side LRU cache.
 
-## RSC integration (client cache metadata → server)
-During React Server Component (RSC) requests, NexusRuntime intercepts fetch calls and writes short‑lived cookies with client cache metadata so the server can understand the client’s cache state:
-- `__NEXUS_PATHNAME__` — the normalized current pathname
-- `__NEXUS_CLIENT_CACHE__` — base64‑encoded JSON array of `{ cacheKey, ttl, etag }`
-
-This allows the server to:
-- Match ETags and skip sending payload (skip hydration) when the client already has the exact data
-- Mark not‑modified keys so the client can extend TTL without re‑downloading
-
-Notes
-- Cookies are short‑lived and only used to pass metadata for the current RSC turn.
-- Only keys indexed for the current pathname are included.
+**See also**
+- [`NexusHydrationBoundary`](/en/api/nexus-hydration-boundary)
+- [`NexusRenderer`](/en/api/nexus-renderer)

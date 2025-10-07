@@ -1,18 +1,40 @@
 ---
-title: NexusRenderer | Rendering Delegation
-description: Reduce TTFB and server work by delegating rendering to the client when cache is fresh.
+title: 'NexusRenderer: Rendering Delegation'
+description: Reduce TTFB and server workload by delegating rendering to the client when its cache is fresh.
 ---
 
-# Rendering Delegation with NexusRenderer
+# `NexusRenderer`
 
-NexusRenderer skips server rendering when the client already has a fresh cache entry for the target definition(s). This reduces TTFB and server costs.
+`NexusRenderer` is a server-only component that can improve performance by delegating rendering to the client.
 
-## Single definition
+## Core Concept: Rendering Delegation
 
-Use a server presentational component and a client re-export of the same component.
+When a user navigates between pages, they might already have fresh data for the next page in their client-side cache. In this scenario, having the server re-fetch and re-render the components is redundant work that increases Time to First Byte (TTFB) and server costs.
+
+`NexusRenderer` solves this by checking the client's cache state *before* rendering on the server. If it determines the client has fresh data for the required `definition`(s), it skips server-rendering the component and instead sends a lightweight placeholder, instructing the client to render it immediately using the cached data.
+
+## Import
+```ts path=null start=null
+import { NexusRenderer } from 'next-nexus/server';
+```
+
+## How It Works
+`NexusRenderer` relies on client cache metadata sent with RSC requests (see `NexusRuntime`). It compares the `definition`(s) you provide against this metadata to check for cache freshness (based on `revalidate` TTL).
+
+- **If fresh**: It delegates rendering to the client.
+- **If stale or missing**: It renders the `serverComponent` and triggers the necessary server-side `nexus` calls to hydrate the client.
+
+## Usage
+
+You provide `NexusRenderer` with both a server and a client version of a component.
+
+- `serverComponent`: The component to render on the server if data is not fresh on the client.
+- `clientComponent`: The component to render on the client. This is often the same component as the server one, but re-exported from a `'use client'` file.
+
+### With a Single Definition
 
 ```tsx path=null start=null
-// components/ProductListUI.tsx (server presentational)
+// components/ProductListUI.tsx (can be a Server Component)
 import type { Product } from '@/api/productDefinition';
 const ProductListUI = ({ data, title }: { data: Product[]; title: string }) => (
   <div>
@@ -22,15 +44,15 @@ const ProductListUI = ({ data, title }: { data: Product[]; title: string }) => (
 );
 export default ProductListUI;
 
-// components/client-ui/index.ts (client re-export)
+// components/client/ui.ts (re-export for client use)
 'use client';
 export { default as ProductListUIClient } from '@/components/ProductListUI';
 
-// app/(shop)/page.tsx (server)
+// app/page.tsx (Server Component)
 import { NexusRenderer } from 'next-nexus/server';
 import { productDefinition } from '@/api/productDefinition';
 import ProductListUI from '@/components/ProductListUI';
-import { ProductListUIClient } from '@/client-ui';
+import { ProductListUIClient } from '@/components/client/ui';
 
 export default function Page() {
   return (
@@ -38,19 +60,14 @@ export default function Page() {
       definition={productDefinition.list}
       serverComponent={ProductListUI}
       clientComponent={ProductListUIClient}
-      componentProps={{ title: 'Our Products!' }}
+      componentProps={{ title: 'Our Products' }}
     />
   );
 }
 ```
 
-How it decides
-- If the client cache has a fresh entry (based on TTL) for the definition’s cache key, the server releases rendering and lets the client render immediately.
-- If stale or missing, the server renders and (if needed) fetches with nexus and hydrates the client.
-
-## Group of definitions
-
-Pass a map of definitions to decide collectively. If at least one is fresh on the client, the renderer will delegate and, if necessary, prefetch stale GET definitions on the server in the background.
+### With a Group of Definitions
+You can also provide a map of definitions. If **at least one** is fresh on the client, the renderer will delegate. It will still prefetch any stale definitions in the background on the server to ensure the client has all necessary data.
 
 ```tsx path=null start=null
 <NexusRenderer
@@ -61,8 +78,11 @@ Pass a map of definitions to decide collectively. If at least one is fresh on th
 />
 ```
 
-Caveats
-- You should not use server-only APIs directly within a subtree.
-- Ensure segment hydration is enabled (layout boundary or page HOC), otherwise delegation cannot hydrate.
-- Client components must be exported from a file with 'use client'.
+## Important Considerations
+- **Hydration must be enabled**: `NexusRenderer` requires `NexusHydrationBoundary` to be active in the component tree.
+- **Client Component Exports**: The `clientComponent` must be exported from a file that has the `'use client'` directive at the top.
+- **No Server-Only APIs**: Do not use server-only APIs (like database clients or file system access) directly within a component passed to `NexusRenderer`, as it may need to render on the client. Fetch data outside the component and pass it as props.
 
+**See also**
+- [`NexusRuntime`](/en/api/nexus-runtime)
+- [`NexusHydrationBoundary`](/en/api/nexus-hydration-boundary)

@@ -1,11 +1,13 @@
 ---
-title: useNexusQuery
-description: Client-side hook for GET queries with hydration-aware behavior.
+title: 'useNexusQuery: Client-Side Data Querying'
+description: Learn how to read hydrated data on first paint and revalidate efficiently on the client using useNexusQuery.
 ---
 
-# useNexusQuery
+# `useNexusQuery`
 
-Import:
+`useNexusQuery` is a client-side hook for fetching, caching, and revalidating data defined by a `definition`. It's designed for reading data in Client Components.
+
+## Import
 
 ```ts path=null start=null
 import { useNexusQuery } from 'next-nexus/client';
@@ -16,14 +18,7 @@ import { useNexusQuery } from 'next-nexus/client';
 ```ts path=null start=null
 useNexusQuery<TData, TSelectedData = TData>(
   definition: NexusDefinition<TData>,
-  options?: {
-    route?: string
-    enabled?: boolean
-    select?: (data: TData) => TSelectedData
-    revalidateOnWindowFocus?: boolean
-    revalidateOnMount?: boolean
-    keepStaleData?: boolean
-  }
+  options?: { ... }
 ): {
   data: TSelectedData | undefined
   headers: Headers | undefined
@@ -35,17 +30,36 @@ useNexusQuery<TData, TSelectedData = TData>(
   revalidate: () => Promise<void>
 }
 ```
+- **`definition`**: A `GET` definition object. The hook will throw an error if a non-GET definition is passed.
+- **`options`**: An optional object to configure the hook's behavior. See [Options](#options) below.
 
-## Notes
+## Core Concepts
 
-- GET-only: throws if a non-GET definition is passed.
-- Hydration-aware: renders instantly if the server provided hydrated data.
-- Subscribes to the client cache and re-renders on updates.
-- `route` lets you proxy via a Next.js Route Handler; when provided, runtime clears `baseURL` and uses `route` as the effective endpoint.
+### Hydration-Aware Fetching
+`useNexusQuery` is aware of data fetched on the server and passed to the client via hydration. If data is available in the client cache upon mount, it will be rendered instantly without a new fetch, eliminating UI flickers.
+
+### Foreground vs. Background Revalidation
+The hook automatically determines the revalidation mode when `revalidate()` is called or when automatic revalidation events (mount, window focus) occur:
+- **Foreground**: If no cached entry exists, or if `keepStaleData` is `false` and the entry is stale. This sets `isPending` to `true`.
+- **Background**: If a stale entry exists and `keepStaleData` is `true` (the default). This sets `isPendingBackground` to `true`, while `isPending` remains `false`.
+- **No-op**: If a fresh entry exists, no fetch is performed.
+
+### State Flags and UX
+- **`isPending`**: `true` during a foreground fetch. Use this to show a loading state like a spinner, especially when no data is yet available (`isPending && !data`).
+- **`isPendingBackground`**: `true` during a background fetch. Use this to show a more subtle loading indicator (e.g., disabling a refresh button) while stale data remains visible.
+
+## Options
+
+- **`route?`**: `string` - Proxies the request through a Next.js Route Handler. When provided, the runtime clears `baseURL` from the `definition` and uses the `route` as the effective endpoint.
+- **`enabled?`**: `boolean` (default: `true`) - If set to `false`, the hook will not fetch data or subscribe to cache updates.
+- **`select?`**: `(data: TData) => TSelectedData` - A function to select or transform the data. The component will only re-render if the selected value changes.
+- **`revalidateOnWindowFocus?`**: `boolean` (default: `true`) - Automatically revalidates when the window is refocused.
+- **`revalidateOnMount?`**: `boolean` (default: `true`) - Automatically revalidates on mount if the data is stale.
+- **`keepStaleData?`**: `boolean` (default: `true`) - If `true`, stale data is kept on screen while a background revalidation occurs. If `false`, `data` becomes `undefined` during a foreground revalidation.
 
 ## Examples
 
-### Basic
+### Basic Usage
 
 ```tsx path=null start=null
 'use client';
@@ -54,8 +68,10 @@ import { productDefinition } from '@/api/productDefinition';
 
 export function ProductListClient() {
   const { data, isPending } = useNexusQuery(productDefinition.list);
+  
+  if (isPending && !data) return <div>Loading...</div>;
+
   const products = data ?? [];
-  if (!data && isPending) return <div>Loading...</div>;
   return (
     <ul>
       {products.map(p => (
@@ -66,7 +82,22 @@ export function ProductListClient() {
 }
 ```
 
-### Route override (proxy)
+### Using the `select` Option
+
+```tsx path=null start=null
+'use client';
+import { useNexusQuery } from 'next-nexus/client';
+import { statsDefinition } from '@/api/statsDefinition';
+
+export function TotalCount() {
+  const { data: count } = useNexusQuery(statsDefinition.summary, {
+    select: s => s.total,
+  });
+  return <div>Total: {count ?? 0}</div>;
+}
+```
+
+### Using a `route` Override
 
 ```tsx path=null start=null
 'use client';
@@ -79,30 +110,15 @@ export function ProductListViaRoute() {
 }
 ```
 
-### Select
+### Reading Cached Headers
 
 ```tsx path=null start=null
 'use client';
 import { useNexusQuery } from 'next-nexus/client';
-import { statsDefinition } from '@/api/statsDefinition';
+import { listWithTotalDefinition } from '@/api/productDefinition'; // Assuming this exists
 
-export function CountOnly() {
-  const { data: count } = useNexusQuery(statsDefinition.summary, {
-    select: s => s.total,
-  });
-  return <div>Total: {count ?? 0}</div>;
-}
-```
-
-### Reading cached headers
-
-```tsx path=null start=null
-'use client';
-import { useNexusQuery } from 'next-nexus/client';
-import { statsDefinition } from '@/api/statsDefinition';
-
-export function WithTotal() {
-  const { data, headers } = useNexusQuery(statsDefinition.listWithHeaders);
+export function ProductListWithTotal() {
+  const { data, headers } = useNexusQuery(listWithTotalDefinition);
   const total = headers?.get('x-total-count');
   return (
     <div>
@@ -112,29 +128,6 @@ export function WithTotal() {
 }
 ```
 
-### Revalidation behavior
-
-- `revalidateOnWindowFocus`: revalidate on focus (default: true)
-- `revalidateOnMount`: revalidate on mount when stale (default: true)
-- `keepStaleData`: keep stale data and revalidate in background (default: true)
-- `enabled`: set to false to disable fetching and subscriptions
-
-## Foreground vs background semantics (revalidate and auto events)
-
-revalidate() uses the same decision logic as automatic revalidation on mount/focus:
-- No cached entry exists → foreground
-- Cached entry exists and is expired →
-  - background if `keepStaleData=true`
-  - foreground if `keepStaleData=false`
-- Cached entry exists and is fresh → no fetch (revalidate is a no-op)
-
-## State flags and UX mapping
-
-- Foreground fetch → `isPending=true`, `isPendingBackground=false`
-  - Use this for visible loading states. If `keepStaleData=false` and the entry is expired, you typically clear the UI and show a spinner.
-- Background fetch → `isPending=false`, `isPendingBackground=true`
-  - Keep stale data on screen and avoid disruptive loading spinners. Prefer a subtle busy indicator (e.g., disable a Refresh button) while background work runs.
-
-Practical guideline
-- Show a loader only when `isPending && !data`.
-- For background refreshes, keep the UI stable and optionally show a light progress affordance.
+**See also**
+- [Definitions](/en/api/definitions)
+- [nexusCache](/en/api/nexus-cache)

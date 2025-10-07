@@ -1,51 +1,86 @@
 ---
-title: Revalidation
-description: Tag-based revalidation for server/client caches.
+title: Tag-Based Cache Revalidation
+description: Learn how to invalidate server and client caches by tags using revalidateServerTags and revalidateClientTags.
 ---
 
-# Revalidation
+# Tag-Based Revalidation
 
-## Client
+next-nexus provides functions to invalidate cached data based on tags, ensuring that your UI stays in sync with your data source after mutations.
+
+## Core Concept
+
+Both the Next.js Data Cache (for Server Components) and the next-nexus client-side cache (for Client Components) use a tagging system. When you create a `definition`, you can associate it with one or more tags. Later, you can "revalidate" those tags, which marks any cached data associated with them as stale.
+
+- On the **server**, this causes Next.js to refetch the data on the next request.
+- On the **client**, this causes any mounted `useNexusQuery` hooks subscribed to that data to automatically refetch.
+
+## Server-Side Revalidation
+
+### `revalidateServerTags`
+Use this function within Server Actions or Route Handlers to invalidate entries in the Next.js Data Cache.
+
+**Import**
 ```ts path=null start=null
-import { revalidateClientTags } from 'next-nexus/client'
-revalidateClientTags(['products'])
+import { revalidateServerTags } from 'next-nexus';
 ```
 
-## Server
+**Signature**
 ```ts path=null start=null
-'use server'
-import { revalidateServerTags } from 'next-nexus/server'
-await revalidateServerTags(['products', 'product:123'])
+revalidateServerTags(tags: string[]): Promise<void>
 ```
 
-## Notes
-- Tags are normalized (trimmed, unique, sorted). Empty/invalid tags throw.
-- Server uses `revalidateTag` under the hood; dev logs provide insight when enabled.
+## Client-Side Revalidation
 
-## Best practices
-- Use broad tags (e.g., `['posts']`) and add fine-grained tags when needed (e.g., `['post:123']`).
-- Call `revalidateServerTags` in server actions/handlers that modify server-rendered content.
-- Pair with `revalidateClientTags` in client `onSuccess` callbacks to update interactive views immediately.
+### `revalidateClientTags`
+Use this function in client-side code, typically in the `onSuccess` callback of `useNexusMutation`, to invalidate entries in the client-side cache.
 
-## Pitfalls
-- Avoid empty tags or whitespace-only tags (throws).
-- Without consistent tagging on definitions, revalidation will not target the intended entries.
+**Import**
+```ts path=null start=null
+import { revalidateClientTags } from 'next-nexus/client';
+```
 
-## Combined example
+**Signature**
+```ts path=null start=null
+revalidateClientTags(tags: string[]): void
+```
+
+## Full Workflow Example
+
+A common pattern is to call both revalidation functions after a successful mutation to ensure both server-rendered and client-rendered data are updated.
+
 ```tsx path=null start=null
-'use client'
-import { revalidateClientTags } from 'next-nexus/client'
-import { revalidateServerTags } from 'next-nexus/server'
+// 1. In your Server Action
+import { revalidateServerTags } from 'next-nexus';
 
-export function Save({ id }: { id: string }) {
-  async function action() {
-    'use server'
-    // write...
-    await revalidateServerTags(['posts', `post:${id}`])
-  }
+export async function updateUserAction(formData: FormData) {
+  'use server';
+  // ... update user in the database
+  await revalidateServerTags(['users', `user:${id}`]);
+  return { success: true };
+}
 
-  // in client onSuccess
-  const onSuccess = () => revalidateClientTags(['posts', `post:${id}`])
+// 2. In your Client Component
+import { useNexusFormAction, revalidateClientTags } from 'next-nexus/client';
+import { updateUserAction } from './actions';
+
+export function UserForm() {
+  const { formAction } = useNexusFormAction(updateUserAction, {
+    onSuccess: () => {
+      // Revalidate client cache after server action is successful
+      revalidateClientTags(['users']);
+    },
+  });
+
+  return <form action={formAction}>{/* ... */}</form>;
 }
 ```
 
+## Best Practices
+
+- **Be Consistent**: Ensure that the tags you revalidate match the tags defined in your `definition` objects.
+- **Use Granularity**: Use broad tags for collections (e.g., `['posts']`) and add specific tags for individual items (e.g., `['posts', 'post:123']`). This allows for both broad and targeted revalidation.
+- **Avoid Invalid Tags**: Empty tags or tags with only whitespace will throw an error.
+
+**See also**
+- [Definitions](/en/api/definitions)
+- [useNexusMutation](/en/api/hooks/use-nexus-mutation)

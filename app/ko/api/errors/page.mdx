@@ -1,34 +1,73 @@
 ---
 title: 오류 처리
-description: isNexusError로 오류를 식별하고 구조화된 코드로 처리하기.
+description: isNexusError 타입 가드와 구조화된 오류 코드로 오류를 감지하고 처리하는 방법을 알아보세요.
 ---
 
 # 오류 처리
 
-임포트:
+next-nexus는 모든 내부 및 네트워크 관련 오류를 커스텀 `NexusError` 객체로 정규화합니다. 이 객체는 디버깅과 오류 처리를 쉽게 하기 위한 구조화된 정보를 제공합니다.
+
+## `NexusError` 객체
+
+`NexusError` 객체는 다음과 같은 핵심 프로퍼티를 가집니다:
+
+- **`code`**: 오류 타입을 식별하는 문자열 enum (예: `NETWORK_ERROR`, `TIMEOUT_ERROR`).
+- **`message`**: 사람이 읽을 수 있는 오류 설명.
+- **`response?`**: 서버로부터 응답을 받은 후 오류가 발생한 경우, 응답 상세 정보를 포함하는 선택적 객체.
+  - **`response.status`**: HTTP 상태 코드.
+  - **`response.data`**: 파싱된 응답 본문 (사용 가능한 경우).
+  - **`response.headers`**: 응답 헤더.
+- **`config?`**: 요청에 사용된 `definition` 및 설정.
+
+## `isNexusError` 타입 가드
+
+`try...catch` 블록에서 `NexusError`를 안전하게 식별하려면 `isNexusError` 타입 가드를 사용하세요.
+
+### Import
 ```ts path=null start=null
-import { isNexusError } from 'next-nexus/errors'
+import { isNexusError } from "next-nexus/errors";
 ```
 
-## 사용 패턴
+### 사용 패턴
 ```ts path=null start=null
 try {
-  const res = await nexus(def)
+  const res = await nexus(def);
 } catch (e) {
   if (isNexusError(e)) {
-    console.error(e.code, e.response?.status, e.response?.data, e.message)
+    // 이제 NexusError 프로퍼티에 안전하게 접근할 수 있습니다.
+    console.error('Nexus 오류 코드:', e.code);
+    console.error('HTTP 상태:', e.response?.status);
+    console.error('응답 데이터:', e.response?.data);
   } else {
-    console.error('Unknown error', e)
+    // next-nexus에서 발생하지 않은 알 수 없는 오류
+    console.error('알 수 없는 오류', e);
   }
 }
 ```
 
-## 대표 에러 코드(일부)
-- NETWORK_ERROR, TIMEOUT_ERROR, CANCELED_ERROR
-- BAD_RESPONSE_ERROR, INVALID_URL_ERROR
-- BAD_REQUEST_ERROR, UNAUTHORIZED_ERROR, FORBIDDEN_ERROR, NOT_FOUND_ERROR, RATE_LIMITED_ERROR
-- SERVER_ERROR
-- CACHE_KEY_GENERATION_ERROR, CACHE_STORAGE_ERROR
-- INVALID_CONFIG_ERROR, MISSING_REQUIRED_FIELD, TYPE_MISMATCH_ERROR, INVALID_DEFINITION_ERROR, UNSUPPORTED_METHOD_ERROR
-- ETAG_PARSING_ERROR, UNKNOWN_ERROR
+## 주요 오류 코드
 
+마주칠 수 있는 주요 오류 코드의 일부입니다.
+
+#### 네트워크 및 요청 문제
+- `NETWORK_ERROR`: 네트워크 문제(예: DNS, 인터넷 없음)로 요청이 실패했습니다.
+- `TIMEOUT_ERROR`: `timeout` 제한을 초과하여 요청이 중단되었습니다.
+- `CANCELED_ERROR`: 요청이 수동으로 취소되었습니다.
+- `INVALID_URL_ERROR`: `baseURL`과 `endpoint`로 조합된 URL이 유효하지 않습니다.
+
+#### HTTP 응답 오류 (4xx-5xx)
+- `BAD_REQUEST_ERROR` (400)
+- `UNAUTHORIZED_ERROR` (401)
+- `FORBIDDEN_ERROR` (403)
+- `NOT_FOUND_ERROR` (404)
+- `RATE_LIMITED_ERROR` (429)
+- `SERVER_ERROR` (5xx)
+- `BAD_RESPONSE_ERROR`: 응답을 파싱할 수 없거나 형식이 잘못되었습니다.
+
+#### 설정 및 캐시 오류
+- `INVALID_DEFINITION_ERROR`: `definition` 객체에 필수 필드가 없거나 값이 유효하지 않습니다.
+- `CACHE_KEY_GENERATION_ERROR`: `definition`에서 안정적인 캐시 키를 생성하는 데 실패했습니다.
+- `CACHE_STORAGE_ERROR`: 캐시에 쓰기를 시도하는 동안 오류가 발생했습니다.
+
+**함께 보기**
+- [Definitions](/ko/api/definitions)

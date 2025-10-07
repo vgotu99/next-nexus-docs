@@ -1,32 +1,50 @@
 ---
 title: Debugging
-description: Enable dev logs and understand cache/request events.
+description: Enable development logs and understand cache and request events to troubleshoot your application.
 ---
 
-# Debugging & Troubleshooting
+# Debugging and Troubleshooting
 
-Enable detailed logs:
+next-nexus includes a verbose logging system to help you understand its behavior during development.
+
+## Enabling Debug Logs
+
+To enable detailed logs, add the following variable to your `.env.local` file:
 
 ```bash path=null start=null
-# .env.local
 NEXT_PUBLIC_NEXUS_DEBUG=true
 ```
 
-## Request Events
+With this flag, next-nexus will print information about requests, cache interactions, and hydration to your browser's developer console.
 
-- START — request started
-- SUCCESS — request finished successfully
-- ERROR — request failed
-- TIMEOUT — request aborted by timeout
+## Understanding Log Events
 
-## Cache Events
+#### Request Events
+- **`START`**: A request has started.
+- **`SUCCESS`**: A request finished successfully.
+- **`ERROR`**: A request failed.
+- **`TIMEOUT`**: A request was aborted due to a timeout.
 
-- HIT/HIT-STALE/MISS — client cache lookup results
-- SKIP/MATCH — server decided to skip hydration (notModified) or matched a client entry
-- SET/UPDATE/DELETE — client cache write operations
+#### Cache Events
+- **`HIT`**: A fresh entry was found in the client cache.
+- **`HIT-STALE`**: A stale entry was found in the client cache.
+- **`MISS`**: No entry was found in the client cache.
+- **`SET`**: An item was added to the cache.
+- **`UPDATE`**: An existing item in the cache was updated.
+- **`DELETE`**: An item was removed from the cache.
 
-## When hydration seems missing
+#### Hydration & Delegation Events
+- **`HYDRATE`**: The client cache was hydrated with server-rendered data.
+- **`DELEGATE`**: `NexusRenderer` delegated rendering to the client because of a fresh cache entry.
+- **`SKIP`**: The server skipped hydrating a key because the client already has the same version (ETag match).
+- **`MATCH`**: The server found a matching entry in the client's cache metadata.
 
-- Ensure the segment applies a hydration boundary (layout) or the page is exported via withNexusHydrationBoundary.
-- Verify that the exact same definition (method/endpoint/tags/revalidate/cachedHeaders) is used on both server and client.
-- Confirm headers you read on the client are listed in definition.client.cachedHeaders.
+## Common Troubleshooting Scenarios
+
+### Hydration is not working
+- **Check for the boundary**: Ensure the page or layout is wrapped with `NexusHydrationBoundary` or `withNexusHydrationBoundary`.
+- **Check for `NexusRuntime`**: Verify that `<NexusRuntime />` is present in your root layout.
+- **Check the `definition`**: The exact same `definition` object (including method, endpoint, tags, etc.) must be used on both the server (for `nexus`) and the client (for `useNexusQuery`). Any discrepancy will result in a cache key mismatch.
+
+### Cached headers are missing
+- **Check `cachedHeaders`**: Confirm that the header name you are trying to read on the client is included in the `client.cachedHeaders` array in the `definition`.

@@ -1,0 +1,44 @@
+---
+title: Common Features
+description: An overview of interceptors, the error model, cached response headers, and debugging.
+---
+
+# Common Features
+
+An overview of essential features that apply across both data reads and writes.
+
+## Interceptors
+
+Register request and response interceptors to apply custom logic to all `nexus` calls, such as adding auth headers or logging.
+
+**See also**: [Interceptors](/en/api/interceptors)
+
+## Error Model
+
+Use the `isNexusError` type guard to reliably handle errors from `nexus` calls.
+
+```ts path=null start=null
+import { isNexusError } from "next-nexus/errors";
+
+try {
+  await nexus(def);
+} catch (e) {
+  if (isNexusError(e)) {
+    console.error(e.code, e.response?.status);
+  }
+}
+```
+
+**See also**: [Error Handling](/en/api/errors)
+
+## Cached Response Headers
+
+You can define specific, safe-to-cache response headers to be included with the cached data. This is useful for metadata like pagination totals (`x-total-count`) or rate-limit information.
+
+**See also**: [Definitions](/en/api/definitions)
+
+## Debugging
+
+Enable development logs by setting `NEXT_PUBLIC_NEXUS_DEBUG=true` in your `.env.local` file. This will print detailed request and cache events to the console.
+
+**See also**: [/en/debugging](/en/debugging)

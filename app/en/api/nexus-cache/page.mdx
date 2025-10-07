@@ -1,61 +1,86 @@
 ---
-title: nexusCache
-description: Direct client-side cache access for advanced use cases.
+title: 'nexusCache: Direct Cache Access'
+description: A utility for direct, synchronous client-side cache access.
 ---
 
-# nexusCache
+# `nexusCache`
+
+`nexusCache` is a utility for advanced use cases that require direct, synchronous access to the client-side cache.
+
+## Import
 
 ```ts path=null start=null
 import { nexusCache } from "next-nexus/client";
-import { productDefinition } from "@/api/productDefinition";
-
-const cache = nexusCache(productDefinition.list);
-
-const current = cache.get();
-cache.set((prev) => (prev ? [...prev] : prev));
-cache.invalidate(); // mark stale
-const unsubscribe = cache.subscribe((data) => {
-  /* react to changes */
-});
-
-// later
-unsubscribe();
 ```
 
-> Limitations
-> - GET-only. Calling with a non-GET definition throws: "nexusCache only supports GET definitions".
-> - Prefer tag revalidation for broad updates; `nexusCache` writes are for advanced cases like optimistic UI.
+## Core Concepts
 
-## Optimistic update pattern
-```tsx path=null start=null
-'use client'
-import { useNexusMutation } from 'next-nexus/client'
-import { nexusCache } from 'next-nexus/client'
-import { todosDefinition } from '@/definitions'
+### Direct Cache Access
 
-export function AddTodo() {
-  const listCache = nexusCache(todosDefinition.list)
-  const { mutate, isPending } = useNexusMutation(
-    (input: { title: string }) => todosDefinition.create(input),
-    {
-      onStart: (input) => {
-        listCache.set((prev) => (prev ? [{ id: '__temp__', title: input.title }, ...prev] : prev))
-      },
-      onError: () => {
-        // rollback by invalidating or removing temp item
-        listCache.invalidate()
-      },
-    }
-  )
-  return <button onClick={() => mutate({ title: 'New' })} disabled={isPending}>Add</button>
-}
-```
+`nexusCache` returns a handle that allows you to synchronously read from and write to the cache entry for a specific `GET` definition.
+
+### When to Use
+
+It is primarily intended for implementing complex patterns like optimistic updates, where you want to update the UI instantly before the server has confirmed a change. For most other use cases, such as refetching data after a mutation, using `revalidateClientTags` is the recommended approach as it is less error-prone.
+
+### Limitations
+
+- **GET-only**: `nexusCache` only supports `GET` definitions. Calling it with a non-GET definition will throw an error.
+- **Advanced Use Only**: Manual cache writes are powerful but can easily lead to inconsistencies between the client UI and the server's state. Prefer tag-based revalidation wherever possible.
 
 ## API
 
-- get(): T | undefined
-- set(updater: (old: T | undefined) => T): void
-- remove(): void
-- invalidate(): void
-- isStale(): boolean
-- subscribe(fn: (data: T | undefined) => void): () => void
+Given `const cache = nexusCache(definition)`, the following methods are available:
+
+- **`get(): T | undefined`**: Returns the current cached data, or `undefined` if none exists.
+- **`set(updater: (old: T | undefined) => T): void`**: Updates the cache entry. The `updater` function receives the previous state and should return the new state.
+- **`remove(): void`**: Removes the entry from the cache.
+- **`invalidate(): void`**: Marks the cache entry as stale, which will trigger a refetch on the next `useNexusQuery` render.
+- **`isStale(): boolean`**: Returns `true` if the entry is marked as stale.
+- **`subscribe(fn: (data: T | undefined) => void): () => void`**: Subscribes to changes in the cache entry. Returns an `unsubscribe` function.
+
+## Example: Optimistic Updates
+
+In this example, when a new todo is being created, we use `onStart` in `useNexusMutation` to immediately add a temporary item to the cached list. If the mutation fails, we roll back the change in `onError`.
+
+```tsx path=null start=null
+"use client";
+import {
+  useNexusMutation,
+  nexusCache,
+  revalidateClientTags,
+} from "next-nexus/client";
+import { todosDefinition } from "@/definitions";
+
+export function AddTodo() {
+  const listCache = nexusCache(todosDefinition.list);
+
+  const { mutate, isPending } = useNexusMutation(todosDefinition.create, {
+    onStart: (input) => {
+      // Immediately add a temporary item to the list
+      listCache.set((prev) =>
+        prev ? [{ id: "__temp__", title: input.title }, ...prev] : prev
+      );
+    },
+    onSuccess: () => {
+      // The successful mutation should trigger a revalidation to get the real data
+      revalidateClientTags(["todos"]);
+    },
+    onError: () => {
+      // If the mutation fails, invalidate the cache to roll back the optimistic update
+      listCache.invalidate();
+    },
+  });
+
+  return (
+    <button onClick={() => mutate({ title: "New Todo" })} disabled={isPending}>
+      Add
+    </button>
+  );
+}
+```
+
+**See also**
+
+- [useNexusMutation](/en/api/hooks/use-nexus-mutation)
+- [Revalidation](/en/api/revalidation)

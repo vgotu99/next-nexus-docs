@@ -1,26 +1,63 @@
-# useNexusInfiniteQuery (Client)
+---
+title: 'useNexusInfiniteQuery: Infinite Scrolling'
+description: Learn how to implement infinite scrolling or pagination with useNexusInfiniteQuery, supporting cursor-based and page-based loading.
+---
 
-Build infinite scroll or page-by-page UIs with a definition factory and a small set of options.
+# `useNexusInfiniteQuery`
+
+`useNexusInfiniteQuery` is a client-side hook for building "infinite scroll" or "load more" UIs. It manages page parameters, fetching, and state aggregation.
+
+## Import
+
+```ts path=null start=null
+import { useNexusInfiniteQuery } from 'next-nexus/client';
+```
+
+## Core Concepts
+
+### How It Works
+The hook takes a `definition` factory function that accepts a page parameter (e.g., a cursor or page number). It calls this function sequentially to fetch pages. You must provide a `getNextPageParam` function that tells the hook how to get the parameter for the *next* page from the data of the *last* successfully fetched page.
+
+### Foreground vs. Background Revalidation
+The revalidation logic for each page is identical to `useNexusQuery`. When fetching a new page (`revalidateNext`) or refetching an existing one (`revalidatePage`):
+- **Foreground**: If the page has no cached entry, or if `keepStaleData` is `false` and the entry is stale. This contributes to the `isPending` state.
+- **Background**: If a stale entry exists and `keepStaleData` is `true`. This contributes to the `isPendingBackground` state.
+
+### State Flags and UX
+- **`isPending`**: `true` during any foreground fetch. Use this to show a primary loading state (e.g., a skeleton screen on initial load, or a spinner on a "Load More" button).
+- **`isPendingBackground`**: `true` during any background fetch.
+- **`hasNextPage`**: `true` if `getNextPageParam` returned a value other than `null` or `undefined` for the last page.
 
 ## Signature
 
-- import: `import { useNexusInfiniteQuery } from 'next-nexus/client'`
-- params:
-  - `getDefinition(param) => NexusDefinition<TPage>` — a factory that returns a GET definition for the given page parameter.
-  - `options` — see below
-- returns: `{ data: { pages, pageParams } | undefined, headers, error, isPending, isPendingBackground, isSuccess, isError, hasNextPage, revalidateNext, prefetchRef? }`
+### Parameters
+- **`getDefinition`**: `(param) => NexusDefinition<TPage>` — A factory function that accepts the current page parameter and returns a `GET` definition.
+- **`options`**: An object to configure the hook. See [Options](#options) below.
+
+### Return Value
+An object containing:
+- `data`: `{ pages: TPage[], pageParams: unknown[] } | undefined`
+- `headers`: `Headers | undefined` (from the most recent fetch)
+- `error`: `Error | null`
+- `isPending`, `isPendingBackground`, `isSuccess`, `isError`: `boolean`
+- `hasNextPage`: `boolean`
+- `revalidateNext`: `() => Promise<void>` (fetches the next page)
+- `prefetchRef?`: `React.Ref<HTMLDivElement>` (an optional ref for a sentinel element to enable prefetching)
 
 ## Options
 
-- `initialPageParam` — starting parameter for the first page (e.g., null or 0)
-- `getNextPageParam(lastPage, pages) => param | null` — return null to stop
-- `keepPages` — keep only the most recent N pages to cap memory usage
-- `revalidateOnMount` (default: true)
-- `revalidateOnWindowFocus` (default: false)
-- `keepStaleData` (default: true)
-- `prefetchNextOnNearViewport` — `{ rootMargin?: string, threshold?: number }`; attaches an IntersectionObserver to prefetch the next page when the sentinel is near the viewport
+- **`initialPageParam`**: The parameter for the very first page (e.g., `0` for page numbers, or `null` for cursor-based pagination).
+- **`getNextPageParam`**: `(lastPage: TPage, allPages: TPage[]) => param | null | undefined` — A function that returns the parameter for the next page, or `null`/`undefined` to indicate the end.
+- **`keepPages?`**: `number` - If set, keeps only the N most recent pages in memory to cap memory usage.
+- **`revalidateOnMount?`**: `boolean` (default: `true`)
+- **`revalidateOnWindowFocus?`**: `boolean` (default: `false`)
+- **`keepStaleData?`**: `boolean` (default: `true`)
+- **`prefetchNextOnNearViewport?`**: `{ rootMargin?: string, threshold?: number }` - Enables prefetching the next page when a sentinel element is near the viewport.
 
-## Definition factory
+## Example
+
+### 1. Definition Factory
+First, create a `definition` that accepts a page parameter, like a cursor.
 
 ```ts path=null start=null
 // src/api/productDefinition.ts (excerpt)
@@ -31,7 +68,7 @@ export interface InfiniteProduct {
 
 export const productDefinition = {
   infiniteList: (cursor: string | null) =>
-    createDefinition<InfiniteProduct>({
+    createApiDefinition<InfiniteProduct>({
       method: "GET",
       endpoint: cursor ? `/products?cursor=${cursor}` : "/products",
       client: {
@@ -42,11 +79,11 @@ export const productDefinition = {
 };
 ```
 
-## Usage
+### 2. Component Usage
+Then, use the hook in your component.
 
 ```tsx path=null start=null
 "use client";
-
 import { useNexusInfiniteQuery } from "next-nexus/client";
 import { productDefinition } from "@/api/productDefinition";
 
@@ -54,59 +91,34 @@ export default function InfiniteProductList() {
   const { data, hasNextPage, revalidateNext, prefetchRef, isPending } =
     useNexusInfiniteQuery(productDefinition.infiniteList, {
       initialPageParam: null,
-      getNextPageParam: (last) => last?.nextCursor ?? null,
-      keepPages: 5,
-      prefetchNextOnNearViewport: { rootMargin: "200px", threshold: 0 },
+      getNextPageParam: (lastPage) => lastPage?.nextCursor ?? null,
+      prefetchNextOnNearViewport: { rootMargin: "200px" },
     });
 
-  const all = data?.pages.flatMap((p) => p.products) ?? [];
+  const allProducts = data?.pages.flatMap((page) => page.products) ?? [];
 
   return (
     <div>
       <ul>
-        {all.map((p) => (
+        {allProducts.map((p) => (
           <li key={p.id}>{p.name}</li>
         ))}
       </ul>
+      
       <button
         onClick={() => revalidateNext()}
         disabled={!hasNextPage || isPending}
       >
-        {isPending ? "Loading…" : "Load more"}
+        {isPending ? "Loading…" : "Load More"}
       </button>
-      {/* Optional sentinel for near-viewport prefetch */}
+
+      {/* Optional: Sentinel element for prefetching */}
       <div ref={prefetchRef} style={{ height: 1 }} />
     </div>
   );
 }
 ```
 
-## Tips
-
-- Use keepPages to avoid unbounded memory growth.
-- Prefer small page sizes and lean payloads to maximize cache reuse.
-- getNextPageParam should be pure and deterministic for the given last page.
-
-## Foreground vs background semantics (revalidateNext/revalidatePage)
-
-The hook picks a mode per page parameter using the same rules as the single query hook:
-- No cached entry for that page → foreground
-- Cached entry exists and is expired →
-  - background if `keepStaleData=true`
-  - foreground if `keepStaleData=false`
-- Cached entry exists and is fresh → `revalidatePage` may append cached data and skip fetching
-
-Behavior details
-- `revalidatePage(param)` appends the cached page immediately when available and `keepStaleData=true`, then fetches if expired using the chosen mode. This enables smooth background prefetch.
-- `revalidateNext()` computes the next param and delegates to `revalidatePage`, so the same mode rules apply.
-
-## State flags and UX mapping
-
-- Foreground fetch(es) → increments `pendingCount` → `isPending=true`, `isPendingBackground=false`
-  - Block “Load more” and show a visible progress indicator.
-- Background fetch(es) → increments `pendingBackgroundCount` → `isPending=false`, `isPendingBackground=true`
-  - Keep the list stable; optionally show a subtle busy state. `prefetchRef` is ideal for background prefetch near the viewport.
-
-Guideline
-- Disable the “Load more” button while `isPending`.
-- Use `prefetchRef` to background‑prefetch the next page without disruptive UI changes.
+**See also**
+- [useNexusQuery](/en/api/hooks/use-nexus-query)
+- [Definitions](/en/api/definitions)

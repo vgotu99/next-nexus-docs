@@ -1,39 +1,85 @@
 ---
-title: useNexusFormAction
-description: Client helper to integrate server actions with HTML forms.
+title: 'useNexusFormAction: Form-based Server Actions'
+description: A client-side helper to integrate Server Actions with HTML forms.
 ---
 
-# useNexusFormAction
+# `useNexusFormAction`
 
-Import:
+`useNexusFormAction` is a client-side hook that simplifies using a Server Action as an HTML form action. It's built on top of the standard React `useFormState` hook and adds pending/success/error states and lifecycle callbacks.
+
+## Import
 
 ```ts path=null start=null
-import { useNexusFormAction } from 'next-nexus/client'
+import { useNexusFormAction } from 'next-nexus/client';
 ```
 
-## Notes
-- Integrates a server action with `<form action={formAction}>`.
-- Exposes `isPending`, `isSuccess`, `isError`, `result`, `error`, and `reset`.
+## Core Concepts
+
+### When to Use
+Use this hook when you want to progressively enhance an HTML `<form>`. It allows a form to be submitted via a Server Action, providing a great user experience with minimal client-side JavaScript. It's the recommended way to handle form submissions with Server Actions in Next.js.
+
+### How It Works
+You pass a Server Action to the hook. It returns a `formAction` function that you pass directly to the `<form action={formAction}>` attribute. The hook manages the form's state, including pending status and the result returned from the Server Action.
+
+## Signature
+
+### Parameters
+- **`serverAction`**: `(formData: FormData) => Promise<TResult>` — The Server Action to be executed on form submission. It automatically receives the `FormData`.
+- **`options?`**: An optional object to configure lifecycle callbacks.
+
+### Return Value
+An object containing:
+- `formAction`: `(payload: FormData) => void` — The function to pass to the `<form>` `action` attribute.
+- `isPending`: `boolean`
+- `isSuccess`: `boolean`
+- `isError`: `boolean`
+- `result`: `TResult | undefined`
+- `error`: `Error | null`
+- `reset`: `() => void`
+
+## Options
+- **`onStart?`**: `(formData: FormData) => void | Promise<void>`
+- **`onSuccess?`**: `(result: TResult, formData: FormData) => void | Promise<void>`
+- **`onError?`**: `(error: Error, formData: FormData) => void | Promise<void>`
+- **`onSettled?`**: `(result?: TResult, error?: Error, formData: FormData) => void | Promise<void>`
 
 ## Example
+This example shows a simple form that uses a Server Action to create a new product. The `isPending` state is used to disable the submit button during submission.
+
 ```tsx path=null start=null
 'use client'
 import { useNexusFormAction } from 'next-nexus/client'
+import { revalidateServerTags } from 'next-nexus'
+import { revalidateClientTags } from 'next-nexus/client'
+
+// Assume this action is in a separate file, e.g., app/actions.ts
+async function createProductAction(formData: FormData) {
+  'use server'
+  const name = formData.get('name') as string;
+  // ... database logic to create the product
+  await revalidateServerTags(['products']);
+  return { ok: true, productName: name };
+}
 
 export default function ProductForm() {
-  const { formAction, isPending, isSuccess } = useNexusFormAction(
-    async (formData: FormData) => {
-      'use server'
-      return { ok: true }
+  const { formAction, isPending, isSuccess, result } = useNexusFormAction(createProductAction, {
+    onSuccess: () => {
+      revalidateClientTags(['products']);
     }
-  )
+  });
 
   return (
     <form action={formAction}>
-      <input name="name" />
-      <button type="submit" disabled={isPending}>Save</button>
-      {isSuccess && <div>Saved!</div>}
+      <input name="name" placeholder="Product Name" required />
+      <button type="submit" disabled={isPending}>
+        {isPending ? 'Saving...' : 'Save'}
+      </button>
+      {isSuccess && <div>Product "{result?.productName}" saved!</div>}
     </form>
-  )
+  );
 }
 ```
+
+**See also**
+- [useNexusAction](/en/api/hooks/use-nexus-action)
+- [Server Actions](https://nextjs.org/docs/app/building-your-application/data-fetching/server-actions-and-mutations)

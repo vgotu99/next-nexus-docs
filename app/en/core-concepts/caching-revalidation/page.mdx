@@ -1,21 +1,22 @@
 ---
-title: Caching & Revalidation
+title: Caching and Revalidation
 description: How tags and revalidate map to next‑nexus (client/server) and Next.js ISR.
 ---
 
-# Caching & Revalidation
+# Caching and Revalidation
 
-Keep it simple: next‑nexus uses tags/revalidate on both server and client via definitions.
+next-nexus uses `tags` and `revalidate` in a unified `definition` for both server and client caching.
 
 ## Basics
 
-- Default: when `server.cache` is omitted, next‑nexus uses `no-store` across versions (Next.js defaults: 14.x `force-cache`, 15+ `no-store`). Use `server.cache: 'force-cache'` only where static caching/ISR is intended.
-- In your definition, set:
-  - `server: { cache, revalidate, tags }` → maps to Next.js `cache` and `next: { revalidate, tags }`
-  - `client: { revalidate, tags }` → client in‑memory cache policy
-- The stable cache key is derived from the definition (including params). ETag enables conditional fetches to skip payload.
+- **Default Cache Policy**: If `server.cache` is omitted, next-nexus defaults to `no-store`. This ensures dynamic behavior across all Next.js versions. For static caching or ISR, you must explicitly set `server.cache: 'force-cache'.
+- **Configuration in `definition`**:
+  - `server: { cache, revalidate, tags }` → Maps to Next.js `fetch` options (`cache`, `next.revalidate`, `next.tags`) to control server-side caching and ISR.
+  - `client: { revalidate, tags }` → Controls the in-memory cache policy on the client.
+- **Cache Key**: A stable cache key is derived from the `definition` object, including any parameters.
+- **ETags**: Conditional requests are made using ETags to avoid re-downloading unchanged data.
 
-## Definition Example (required factory usage)
+## Definition Example (Factory Usage Required)
 
 ```ts path=null start=null
 import { createNexusDefinition } from "next-nexus";
@@ -36,15 +37,15 @@ export const postsDefinition = {
 };
 ```
 
-## Revalidating after writes
+## Revalidating After Writes
 
-- Client cache: `revalidateClientTags(['posts'])`
-- Server cache: `await revalidateServerTags(['posts'])` inside a server action/handler
+- **Client cache**: Call `revalidateClientTags(['posts'])`.
+- **Server cache (ISR)**: Call `await revalidateServerTags(['posts'])` inside a Server Action or Route Handler.
 
 ## Tips
 
-- Prefer broadly-scoped tags (e.g., `['posts']`) and optionally add fine‑grained ones (e.g., `['post:123']`).
-- `revalidate` controls staleness windows; CDN TTL is separate.
-- ETag + hydration minimizes network transfer when data is unchanged.
+- Use a combination of broad tags (e.g., `['posts']`) for collections and granular tags (e.g., `['post:123']`) for individual items.
+- The `revalidate` option controls the staleness window of the cache, which is separate from a CDN's TTL.
+- The combination of ETags and hydration minimizes network traffic when data has not changed.
 
-See also: [Revalidation](/en/api/revalidation), [Definitions](/en/api/definitions).
+**See also**: [Revalidation](/en/api/revalidation), [Definitions](/en/api/definitions).

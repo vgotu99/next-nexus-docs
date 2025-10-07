@@ -1,43 +1,63 @@
 ---
-title: Interceptors
-description: Extend request/response lifecycles with named interceptors.
+title: 'interceptors: Request/Response Lifecycle Hooks'
+description: Learn how to register and apply named interceptors to extend request and response lifecycles on server and client.
 ---
 
 # Interceptors
 
-## Registering
+Interceptors allow you to run code before a request is made or after a response is received. They are useful for centralized logic like adding authentication tokens, logging, or transforming responses.
 
+## Import
 ```ts path=null start=null
 import { interceptors } from "next-nexus";
+```
 
+## Registering Interceptors
+
+Interceptors are registered globally and identified by a unique name.
+
+```ts path=null start=null
+// This would typically be in a central setup file
+
+// Request interceptor to add an auth header
 interceptors.request.use("auth", async (config) => {
   const headers = new Headers(config.headers);
   headers.set("authorization", "Bearer <token>");
   return { ...config, headers };
 });
 
-interceptors.response.use("timing", async (res) => res);
+// Response interceptor for logging
+interceptors.response.use("timing", async (res, req) => {
+  console.log(`Request to ${req.endpoint} took ${res.headers.get('X-Response-Time')}`);
+  return res;
+});
 ```
 
-## Using per definition (factory usage)
+## Applying Interceptors
+
+To apply one or more registered interceptors to a request, add their names to the `interceptors` array in a `definition`.
 
 ```ts path=null start=null
 import { createNexusDefinition } from 'next-nexus'
 
 export const createApiDefinition = createNexusDefinition({
   baseURL: 'https://api.example.com',
-})
+});
 
+// This definition will run the 'auth' and 'timing' interceptors
 const definition = createApiDefinition<{ items: unknown[] }>({
   method: 'GET',
   endpoint: '/protected',
   interceptors: ['auth', 'timing'],
-})
+});
 ```
 
 ## Notes
 
-- Execution order: named interceptors run in registration order.
-- Scope: keep server-only logic server-side; client-only code should avoid server imports.
-- Errors: throwing in an interceptor fails the request and propagates a `NexusError`.
-- Names serialize safely across RSC boundaries.
+- **Execution Order**: Interceptors run in the order they are listed in the `interceptors` array.
+- **Scope**: Be mindful of server-only and client-only code. An interceptor using a server-only module (e.g., a Node.js library) should not be used in a `definition` that runs on the client.
+- **Errors**: Throwing an error within an interceptor will fail the request and propagate a `NexusError`.
+- **Serialization**: Interceptor names are serialized, allowing them to work across the server-client boundary in RSC.
+
+**See also**
+- [Definitions](/en/api/definitions)

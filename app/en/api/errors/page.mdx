@@ -1,35 +1,73 @@
 ---
 title: Error Handling
-description: Detecting and handling errors with isNexusError and structured codes.
+description: Detecting and handling errors with the isNexusError type guard and structured error codes.
 ---
 
 # Error Handling
 
-Import:
+next-nexus normalizes all internal and network-related errors into a custom `NexusError` object, which provides structured information for easier debugging and handling.
 
+## The `NexusError` Object
+
+A `NexusError` object has the following core properties:
+
+- **`code`**: A string enum (e.g., `NETWORK_ERROR`, `TIMEOUT_ERROR`) that provides a stable identifier for the error type.
+- **`message`**: A human-readable description of the error.
+- **`response?`**: An optional object containing response details if the error occurred after receiving a response from the server.
+  - **`response.status`**: The HTTP status code.
+  - **`response.data`**: The parsed response body (if available).
+  - **`response.headers`**: The response headers.
+- **`config?`**: The `definition` and configuration used for the request.
+
+## The `isNexusError` Type Guard
+
+To safely identify a `NexusError` in a `try...catch` block, use the `isNexusError` type guard.
+
+### Import
 ```ts path=null start=null
 import { isNexusError } from "next-nexus/errors";
 ```
 
-## Pattern
+### Usage Pattern
 ```ts path=null start=null
 try {
-  const res = await nexus(def)
+  const res = await nexus(def);
 } catch (e) {
   if (isNexusError(e)) {
-    console.error(e.code, e.response?.status, e.response?.data, e.message)
+    // Now you can safely access NexusError properties
+    console.error('Nexus Error Code:', e.code);
+    console.error('HTTP Status:', e.response?.status);
+    console.error('Response Data:', e.response?.data);
   } else {
-    console.error('Unknown error', e)
+    // This is an unknown error, not originating from next-nexus
+    console.error('Unknown error', e);
   }
 }
 ```
 
-## Common Codes (subset)
+## Common Error Codes
 
-- NETWORK_ERROR, TIMEOUT_ERROR, CANCELED_ERROR
-- BAD_RESPONSE_ERROR, INVALID_URL_ERROR
-- BAD_REQUEST_ERROR, UNAUTHORIZED_ERROR, FORBIDDEN_ERROR, NOT_FOUND_ERROR, RATE_LIMITED_ERROR
-- SERVER_ERROR
-- CACHE_KEY_GENERATION_ERROR, CACHE_STORAGE_ERROR
-- INVALID_CONFIG_ERROR, MISSING_REQUIRED_FIELD, TYPE_MISMATCH_ERROR, INVALID_DEFINITION_ERROR, UNSUPPORTED_METHOD_ERROR
-- ETAG_PARSING_ERROR, UNKNOWN_ERROR
+Below is a subset of common error codes you might encounter.
+
+#### Network & Request Issues
+- `NETWORK_ERROR`: The request failed due to a network issue (e.g., DNS, no internet).
+- `TIMEOUT_ERROR`: The request was aborted because it exceeded the `timeout` limit.
+- `CANCELED_ERROR`: The request was manually canceled.
+- `INVALID_URL_ERROR`: The URL derived from `baseURL` and `endpoint` was invalid.
+
+#### HTTP Response Errors (4xx-5xx)
+- `BAD_REQUEST_ERROR` (400)
+- `UNAUTHORIZED_ERROR` (401)
+- `FORBIDDEN_ERROR` (403)
+- `NOT_FOUND_ERROR` (404)
+- `RATE_LIMITED_ERROR` (429)
+- `SERVER_ERROR` (5xx)
+- `BAD_RESPONSE_ERROR`: The response was unparseable or otherwise malformed.
+
+#### Configuration & Cache Errors
+- `INVALID_DEFINITION_ERROR`: The `definition` object was missing required fields or had invalid values.
+- `CACHE_KEY_GENERATION_ERROR`: Failed to generate a stable cache key from the `definition`.
+- `CACHE_STORAGE_ERROR`: An error occurred while trying to write to the cache.
+
+**See also**
+- [Definitions](/en/api/definitions)

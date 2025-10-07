@@ -1,0 +1,44 @@
+---
+title: 주요 공통 기능
+description: 인터셉터, 오류 처리, 캐시된 응답 헤더, 디버깅 등 알아두면 유용한 공통 기능들을 요약합니다.
+---
+
+# 주요 공통 기능
+
+데이터 읽기/쓰기 작업 전반에 걸쳐 적용되는 주요 기능들입니다.
+
+## Interceptors
+
+요청 및 응답 `interceptor`를 등록하여 모든 `nexus` 호출에 인증 헤더 추가, 로깅 등 공통 로직을 적용할 수 있습니다.
+
+**함께 보기**: [Interceptors](/ko/api/interceptors)
+
+## 오류 처리
+
+`isNexusError` 타입 가드를 사용해 `nexus` 호출 시 발생하는 오류를 신뢰성 있게 처리할 수 있습니다.
+
+```ts path=null start=null
+import { isNexusError } from "next-nexus/errors";
+
+try {
+  await nexus(def);
+} catch (e) {
+  if (isNexusError(e)) {
+    console.error(e.code, e.response?.status);
+  }
+}
+```
+
+**함께 보기**: [오류 처리](/ko/api/errors)
+
+## 캐시된 응답 헤더
+
+캐시해도 안전한 특정 응답 헤더를 데이터와 함께 캐시하도록 `definition`에 명시할 수 있습니다. 페이지네이션 전체 개수(`x-total-count`)나 API 요청 제한 정보 같은 메타데이터에 유용합니다.
+
+**함께 보기**: [Definitions](/ko/api/definitions)
+
+## 디버깅
+
+`.env.local` 파일에 `NEXT_PUBLIC_NEXUS_DEBUG=true`를 추가하여 개발 중 상세 로그를 활성화할 수 있습니다. 요청 및 캐시 관련 이벤트가 콘솔에 자세히 출력되어 디버깅이 쉬워집니다.
+
+**함께 보기**: [/ko/debugging](/ko/debugging)

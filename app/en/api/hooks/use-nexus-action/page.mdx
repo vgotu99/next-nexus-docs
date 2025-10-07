@@ -1,50 +1,81 @@
 ---
-title: useNexusAction
-description: Client helper for calling server actions with pending/result states.
+title: 'useNexusAction: Server Action Helper'
+description: A client-side helper for calling Server Actions with pending and result states.
 ---
 
-# useNexusAction
+# `useNexusAction`
 
-Import:
+`useNexusAction` is a client-side hook that wraps a Server Action. It provides state management (`isPending`, `result`, `error`) and lifecycle callbacks, making it easier to handle server-side logic triggered from the client.
+
+## Import
 
 ```ts path=null start=null
-import { useNexusAction } from 'next-nexus/client'
+import { useNexusAction } from 'next-nexus/client';
 ```
+
+## Core Concepts
+
+### When to Use
+`useNexusAction` is ideal when you have logic that *must* run on the server (e.g., accessing a database directly, using server-only secrets) and you want to call it from a client component like a standard function. It's a lighter-weight alternative to `useNexusMutation` when you don't need to model the operation as a formal API endpoint with a `definition`.
+
+### State Management
+The hook tracks the execution of the Server Action, providing `isPending`, `result`, and `error` states, which simplifies building responsive UIs.
 
 ## Signature
-```ts path=null start=null
-useNexusAction<TResult = unknown, TError extends Error = Error, TArgs extends unknown[] = unknown[]>(
-  serverAction: (...args: TArgs) => Promise<TResult>,
-  options?: {
-    onStart?: (...args: TArgs) => void | Promise<void>
-    onSuccess?: (result: TResult, ...args: TArgs) => void | Promise<void>
-    onError?: (error: Error, ...args: TArgs) => void | Promise<void>
-    onSettled?: (result: TResult | undefined, error: Error | null, ...args: TArgs) => void | Promise<void>
-  }
-)
-```
 
-## Notes
-- Wraps a server action; manages `isPending`, `result`, and error.
-- Provides `execute` (fire-and-forget) and `executeAsync`.
+### Parameters
+- **`serverAction`**: `(...args: TArgs) => Promise<TResult>` — The Server Action function itself.
+- **`options?`**: An optional object to configure lifecycle callbacks.
+
+### Return Value
+An object containing:
+- `execute`: `(...args: TArgs) => void` — A fire-and-forget function to trigger the action.
+- `executeAsync`: `(...args: TArgs) => Promise<TResult>` — A function that returns a promise, allowing you to `await` the action's result.
+- `isPending`: `boolean`
+- `result`: `TResult | undefined`
+- `error`: `Error | null`
+- `reset`: `() => void`
+
+## Options
+- **`onStart?`**: `(...args: TArgs) => void | Promise<void>`
+- **`onSuccess?`**: `(result: TResult, ...args: TArgs) => void | Promise<void>`
+- **`onError?`**: `(error: Error, ...args: TArgs) => void | Promise<void>`
+- **`onSettled?`**: `(result?: TResult, error?: Error, ...args: TArgs) => void | Promise<void>`
 
 ## Example
+In this example, a Server Action is used to update a product name. The `useNexusAction` hook manages the pending state for the button.
+
 ```tsx path=null start=null
 'use client'
 import { useNexusAction } from 'next-nexus/client'
+import { revalidateServerTags } from 'next-nexus'
+import { revalidateClientTags } from 'next-nexus/client'
+
+// Assume this action is in a separate file, e.g., app/actions.ts
+async function updateProductNameAction(id: string, name: string) {
+  'use server'
+  // ... database logic to update the product name
+  await revalidateServerTags(['products', `product:${id}`]);
+  return { success: true, newName: name };
+}
 
 export function UpdateProductName({ productId }: { productId: string }) {
-  const { execute, isPending } = useNexusAction(
-    async (id: string, name: string) => {
-      'use server'
-      return { success: true }
+  const { execute, isPending } = useNexusAction(updateProductNameAction, {
+    onSuccess: (data) => {
+      revalidateClientTags(['products', `product:${productId}`]);
+      alert(`Product name updated to ${data.newName}`);
     }
-  )
+  });
 
   return (
     <button onClick={() => execute(productId, 'New Name')} disabled={isPending}>
       {isPending ? 'Updating…' : 'Update Name'}
     </button>
-  )
+  );
 }
 ```
+
+**See also**
+- [useNexusMutation](/en/api/hooks/use-nexus-mutation)
+- [useNexusFormAction](/en/api/hooks/use-nexus-form-action)
+- [Revalidation](/en/api/revalidation)

@@ -1,21 +1,25 @@
 ---
 title: Getting Started
-description: Setup next-nexus runtime and enable hydration per segment
+description: Setup the next-nexus runtime and enable hydration for your data-fetching segments.
 ---
 
 # Getting Started
 
-Follow two steps to enable next-nexus end to end, then verify with the checklist.
+Follow two steps to enable next-nexus end-to-end, then verify your setup with the checklist.
 
 ## 1) Install the global client runtime (once)
 
-Add the runtime once in your root layout to initialize the client cache and send client cache metadata with RSC requests.
+Add the `NexusRuntime` component once in your root layout. This initializes the client cache and sends client cache metadata with RSC requests.
 
 ```tsx path=null start=null
 // app/layout.tsx
-import { NexusRuntime } from 'next-nexus/client';
+import { NexusRuntime } from "next-nexus/client";
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   return (
     <html lang="en">
       <body>
@@ -28,37 +32,50 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
 }
 ```
 
-Notes
-- Install exactly once globally. Multiple installations cause duplicate work.
-- Keep it near `</body>` so it mounts after your page tree.
+**Notes**
 
-## 2) Enable hydration in data‑fetching segments
+- Install exactly once globally. Multiple installations can cause duplicate work.
+- Keep it near the closing `</body>` tag so it mounts after your page tree.
 
-Wrap the segment that fetches data with a hydration boundary — either at the segment layout or with a page‑level HOC.
+## 2) Enable hydration in data-fetching segments
 
-Option A — Segment layout boundary (recommended for segments with multiple pages)
+Wrap segments that fetch data with a hydration boundary. This can be done at the segment layout level or with a page-level HOC.
+
+**Option A — Segment layout boundary**
+This is recommended for segments with multiple pages that fetch data.
+
 ```tsx path=null start=null
 // app/(shop)/products/layout.tsx
-import { NexusHydrationBoundary } from 'next-nexus/server';
+import { NexusHydrationBoundary } from "next-nexus/server";
 
-export default function ProductsLayout({ children }: { children: React.ReactNode }) {
+export default function ProductsLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   return <NexusHydrationBoundary>{children}</NexusHydrationBoundary>;
 }
 ```
 
-Option B — Page‑level HOC (when the segment doesn’t need its own layout)
+**Option B — Page-level HOC**
+Use this when the segment doesn’t need its own layout file.
+
 ```tsx path=null start=null
 // app/(shop)/products/page.tsx
-import { withNexusHydrationBoundary, nexus } from 'next-nexus/server';
-import { productDefinition } from '@/api/productDefinition';
+import { withNexusHydrationBoundary, nexus } from "next-nexus/server";
+import { productDefinition } from "@/api/productDefinition";
 
 async function ProductsPage() {
   const { data: products, headers } = await nexus(productDefinition.list);
-  const total = headers.get('x-total-count');
+  const total = headers.get("x-total-count");
   return (
     <div>
-      <h1>Products ({total ?? 'n/a'})</h1>
-      <ul>{products?.map(p => <li key={p.id}>{p.name}</li>)}</ul>
+      <h1>Products ({total ?? "n/a"})</h1>
+      <ul>
+        {products?.map((p) => (
+          <li key={p.id}>{p.name}</li>
+        ))}
+      </ul>
     </div>
   );
 }
@@ -66,17 +83,20 @@ async function ProductsPage() {
 export default withNexusHydrationBoundary(ProductsPage);
 ```
 
-Decision guide
-- Use a layout boundary when several sibling pages under the same segment fetch data.
-- Use the page HOC when only a single page fetches data and a new layout would be boilerplate.
+**Decision guide**
+
+- Use a **layout boundary** when several sibling pages under the same segment fetch data.
+- Use the **page HOC** when only a single page fetches data and a new layout file would be boilerplate.
 
 ## Validation checklist
-- Root layout contains exactly one <NexusRuntime />.
-- Exactly one hydration boundary applies to a given rendered page: either segment layout OR page HOC, not both.
-- Server code imports from "next-nexus/server"; client code imports from "next-nexus/client".
-- Definition objects are created via a shared factory (createNexusDefinition) and include explicit generic response types.
+
+- The root layout contains exactly one `<NexusRuntime />`.
+- Exactly one hydration boundary applies to a given rendered page (either the segment layout OR the page HOC, not both).
+- Server code is imported from `"next-nexus/server"`, and client code is imported from `"next-nexus/client"`.
+- All `definition` objects are created via a shared factory (`createNexusDefinition`) and include explicit generic response types.
 
 ## Next steps
+
 - Define requests: see [Definitions](/en/api/definitions)
 - Fetch on the server: see [nexus](/en/api/nexus)
 - Query on the client: see [useNexusQuery](/en/api/hooks/use-nexus-query)

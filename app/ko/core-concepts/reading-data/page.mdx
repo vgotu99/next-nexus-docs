@@ -1,25 +1,26 @@
 ---
 title: 데이터 읽기
-description: 서버 `nexus(...)`와 클라이언트 `useNexusQuery` 중 무엇을 쓸지, 빠른 패턴 요약.
+description: RSC에서의 서버 사이드 nexus()와 클라이언트 사이드 useNexusQuery 사용법을 비교하고, 빠른 패턴과 팁을 알아보세요.
 ---
 
 # 데이터 읽기
 
-상황에 따라 서버/클라이언트 중 적절한 방식을 선택하세요.
+데이터를 읽는 위치에 따라 예측 가능한 코드를 작성할 수 있습니다. 상황에 맞는 최적의 방법을 선택하세요.
 
 ## 빠른 선택 가이드
 
-- 서버(RSC): 서버 컴포넌트에서 `nexus(def)` 호출
-- 클라이언트: 클라이언트 컴포넌트에서 `useNexusQuery(def)` 사용
-- **초기 페이지 로드나 SEO에 중요한 데이터**는 서버에서, **사용자 상호작용에 따라 변하는 데이터**는 클라이언트에서 읽는 것을 권장합니다.
+- **서버(RSC)**: **서버 컴포넌트**에서 초기 페이지 콘텐츠를 로딩할 때 `nexus(def)`를 호출합니다.
+- **클라이언트**: **클라이언트 컴포넌트**에서 상호작용에 따른 데이터를 요청할 때 `useNexusQuery(def)`를 사용합니다.
 
-## 서버 읽기 (RSC)
+**핵심 가이드**: 초기 페이지 로드나 SEO에 중요한 데이터는 **서버**에서, 사용자 상호작용에 따라 변하거나 개인화된 데이터는 **클라이언트**에서 읽는 것이 좋습니다.
+
+## 서버에서 데이터 읽기 (RSC)
 
 ```ts path=null start=null
-import { nexus } from "next-nexus";
+import { nexus } from "next-nexus/server";
 import { usersDefinition } from "@/definitions";
 
-// Next.js 15+ (params가 비동기)
+// Next.js 15+ (params가 Promise)
 export default async function Page({
   params,
 }: {
@@ -31,12 +32,12 @@ export default async function Page({
 }
 ```
 
-> 참고: Next.js 버전에 맞춰 Page props 가이드를 따르세요.
+> **참고**: Next.js 버전에 따라 `Page` 컴포넌트의 `props`를 다르게 사용해야 합니다.
 >
-> - Next.js 15+: `params`/`searchParams`가 Promise입니다. `const { id } = await params` 형태로 사용하세요.
-> - Next.js 14.x 이하: 기존처럼 동기 객체입니다. `params.id`를 바로 사용하세요.
+> - **Next.js 15+**: `params`와 `searchParams`가 `Promise`이므로, `async/await`와 함께 사용해야 합니다.
+> - **Next.js 14.x 및 이전 버전**: 동기 객체이므로 `params.id`와 같이 바로 접근할 수 있습니다.
 
-## 클라이언트 읽기 (hook)
+## 클라이언트에서 데이터 읽기 (Hook)
 
 ```tsx path=null start=null
 "use client";
@@ -44,7 +45,7 @@ import { useNexusQuery } from "next-nexus/client";
 import { usersDefinition } from "@/definitions";
 
 export function UserPanel({ id }: { id: string }) {
-  // 팩토리 함수로 생성된 구체적인 GET Definition을 전달
+  // 팩토리 함수로 생성된 구체적인 GET definition을 전달합니다.
   const { data, error, isPending } = useNexusQuery(usersDefinition.getById(id));
   if (isPending && !data) return <p>Loading…</p>;
   if (error) return <p>Error</p>;
@@ -54,7 +55,7 @@ export function UserPanel({ id }: { id: string }) {
 
 ## 팁
 
-- Definition(및 파라미터)이 안정적인 캐시 키를 결정합니다. 서버에서 읽은 데이터는 하이드레이션으로 재사용됩니다.
-- Next.js 캐싱과 매핑되는 값은 Definition의 `server.tags/revalidate`, `client.tags/revalidate`에 설정하세요.
+- `definition`(과 파라미터)이 캐시 키를 결정합니다. 서버에서 읽은 데이터는 하이드레이션을 통해 클라이언트에서 매끄럽게 재사용됩니다.
+- Next.js의 캐싱 동작과 연동하려면 `definition`의 `server.tags/revalidate`와 `client.tags/revalidate` 옵션을 설정하세요.
 
-참고: [nexus](/ko/api/nexus), [useNexusQuery](/ko/api/hooks/use-nexus-query), [Definitions](/ko/api/definitions).
+**함께 보기**: [nexus](/ko/api/nexus), [useNexusQuery](/ko/api/hooks/use-nexus-query), [Definitions](/ko/api/definitions).

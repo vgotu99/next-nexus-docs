@@ -1,27 +1,24 @@
 ---
-title: useNexusQuery
-description: 하이드레이션을 인지하는 GET 전용 클라이언트 훅.
+title: 'useNexusQuery: 클라이언트 데이터 조회'
+description: 초기 렌더에서 하이드레이션된 데이터를 즉시 사용하고, 클라이언트에서 효율적으로 재검증하는 방법을 useNexusQuery로 알아보세요.
 ---
 
-# useNexusQuery
+# `useNexusQuery`
 
-임포트:
+`useNexusQuery`는 `definition`으로 정의된 데이터를 클라이언트에서 가져오고, 캐시하고, 재검증하기 위한 훅입니다. 클라이언트 컴포넌트에서 데이터를 읽기 위해 설계되었습니다.
+
+## Import
+
 ```ts path=null start=null
-import { useNexusQuery } from 'next-nexus/client'
+import { useNexusQuery } from 'next-nexus/client';
 ```
 
-## 시그니처
+## 시그니처 (Signature)
+
 ```ts path=null start=null
 useNexusQuery<TData, TSelectedData = TData>(
   definition: NexusDefinition<TData>,
-  options?: {
-    route?: string
-    enabled?: boolean
-    select?: (data: TData) => TSelectedData
-    revalidateOnWindowFocus?: boolean
-    revalidateOnMount?: boolean
-    keepStaleData?: boolean
-  }
+  options?: { ... }
 ): {
   data: TSelectedData | undefined
   headers: Headers | undefined
@@ -33,90 +30,104 @@ useNexusQuery<TData, TSelectedData = TData>(
   revalidate: () => Promise<void>
 }
 ```
+- **`definition`**: `GET` 메서드를 사용하는 `definition` 객체. `GET`이 아닌 `definition`이 전달되면 오류가 발생합니다.
+- **`options`**: 훅의 동작을 설정하는 객체. 아래 [Options](#options)를 참고하세요.
 
-## 특징
-- GET 전용(아닌 경우 예외 발생)
-- 서버 하이드레이션 결과를 즉시 활용
-- 클라이언트 캐시 구독으로 실시간 동기화
-- `route` 옵션으로 Next.js Route Handler를 통한 프록시 지원(지정 시 `baseURL` 초기화 후 `route`를 유효 endpoint로 사용)
+## 핵심 개념 (Core Concepts)
 
-## 예제
+### 하이드레이션 인식 페칭 (Hydration-Aware Fetching)
+`useNexusQuery`는 서버에서 페치되어 하이드레이션으로 클라이언트에 전달된 데이터를 인식합니다. 마운트 시점에 클라이언트 캐시에 데이터가 있으면, 새로운 요청 없이 즉시 렌더링하여 UI 깜빡임을 제거합니다.
 
-### 기본
+### Foreground/Background 재검증
+`revalidate()` 함수가 호출되거나 마운트, 창 포커스 등 자동 재검증 이벤트가 발생할 때 훅이 자동으로 재검증 모드를 결정합니다.
+- **Foreground**: 캐시된 데이터가 없거나, `keepStaleData`가 `false`이고 데이터가 만료(stale)된 경우. 이 때 `isPending`이 `true`가 됩니다.
+- **Background**: 만료된 데이터가 있고 `keepStaleData`가 `true`(기본값)인 경우. 이 때 `isPending`은 `false`인 채로 `isPendingBackground`가 `true`가 됩니다.
+- **실행 안 함 (No-op)**: 신선한(fresh) 데이터가 있으면 요청을 수행하지 않습니다.
+
+### 상태 플래그와 UX (State Flags and UX)
+- **`isPending`**: Foreground 재검증 중에 `true`가 됩니다. 아직 데이터가 없을 때(`isPending && !data`) 스피너와 같은 로딩 상태를 표시하는 데 사용하세요.
+- **`isPendingBackground`**: Background 재검증 중에 `true`가 됩니다. 만료된 데이터를 화면에 계속 보여주면서, '새로고침' 버튼을 비활성화하는 등 미묘한 로딩 표시를 위해 사용하세요.
+
+## Options
+
+- **`route?`**: `string` - 요청을 Next.js 라우트 핸들러로 프록시합니다. 이 옵션이 제공되면 런타임은 `definition`의 `baseURL`을 지우고 `route`를 유효 엔드포인트로 사용합니다.
+- **`enabled?`**: `boolean` (기본값: `true`) - `false`로 설정하면 훅이 데이터를 가져오거나 캐시 업데이트를 구독하지 않습니다.
+- **`select?`**: `(data: TData) => TSelectedData` - 데이터를 선택하거나 변환하는 함수. 선택된 값이 변경될 때만 컴포넌트가 리렌더링됩니다.
+- **`revalidateOnWindowFocus?`**: `boolean` (기본값: `true`) - 창이 다시 포커스될 때 자동으로 재검증합니다.
+- **`revalidateOnMount?`**: `boolean` (기본값: `true`) - 데이터가 만료 상태일 때 마운트 시 자동으로 재검증합니다.
+- **`keepStaleData?`**: `boolean` (기본값: `true`) - `true`이면 Background 재검증이 발생하는 동안 만료된 데이터가 화면에 유지됩니다. `false`이면 Foreground 재검증 중에 `data`가 `undefined`가 됩니다.
+
+## 예제 (Examples)
+
+### 기본 사용법
+
 ```tsx path=null start=null
-'use client'
-import { useNexusQuery } from 'next-nexus/client'
-import { productDefinition } from '@/api/productDefinition'
+'use client';
+import { useNexusQuery } from 'next-nexus/client';
+import { productDefinition } from '@/api/productDefinition';
 
 export function ProductListClient() {
-  const { data, isPending } = useNexusQuery(productDefinition.list)
-  const products = data ?? []
-  if (!data && isPending) return <div>로딩 중...</div>
-  return <ul>{products.map(p => (<li key={p.id}>{p.name}</li>))}</ul>
+  const { data, isPending } = useNexusQuery(productDefinition.list);
+  
+  if (isPending && !data) return <div>로딩 중...</div>;
+
+  const products = data ?? [];
+  return (
+    <ul>
+      {products.map(p => (
+        <li key={p.id}>{p.name}</li>
+      ))}
+    </ul>
+  );
 }
 ```
 
-### 라우트 프록시(route)
+### `select` 옵션 사용하기
+
 ```tsx path=null start=null
-'use client'
-import { useNexusQuery } from 'next-nexus/client'
-import { productDefinition } from '@/api/productDefinition'
+'use client';
+import { useNexusQuery } from 'next-nexus/client';
+import { statsDefinition } from '@/api/statsDefinition';
+
+export function TotalCount() {
+  const { data: count } = useNexusQuery(statsDefinition.summary, {
+    select: s => s.total,
+  });
+  return <div>총계: {count ?? 0}</div>;
+}
+```
+
+### `route` 오버라이드 사용하기
+
+```tsx path=null start=null
+'use client';
+import { useNexusQuery } from 'next-nexus/client';
+import { productDefinition } from '@/api/productDefinition';
 
 export function ProductListViaRoute() {
-  const { data } = useNexusQuery(productDefinition.list, { route: '/api/products' })
-  return <div>{data?.length ?? 0} items</div>
-}
-```
-
-### select 사용
-```tsx path=null start=null
-'use client'
-import { useNexusQuery } from 'next-nexus/client'
-import { statsDefinition } from '@/api/statsDefinition'
-
-export function CountOnly() {
-  const { data: count } = useNexusQuery(statsDefinition.summary, {
-    select: (s) => s.total,
-  })
-  return <div>Total: {count ?? 0}</div>
+  const { data } = useNexusQuery(productDefinition.list, { route: '/api/products' });
+  return <div>{data?.length ?? 0}개 항목</div>;
 }
 ```
 
 ### 캐시된 헤더 읽기
-```tsx path=null start=null
-'use client'
-import { useNexusQuery } from 'next-nexus/client'
-import { statsDefinition } from '@/api/statsDefinition'
 
-export function WithTotal() {
-  const { data, headers } = useNexusQuery(statsDefinition.listWithHeaders)
-  const total = headers?.get('x-total-count')
-  return <div>Items: {data?.length ?? 0} / Total: {total ?? 'n/a'}</div>
+```tsx path=null start=null
+'use client';
+import { useNexusQuery } from 'next-nexus/client';
+import { listWithTotalDefinition } from '@/api/productDefinition'; // 이 definition이 있다고 가정
+
+export function ProductListWithTotal() {
+  const { data, headers } = useNexusQuery(listWithTotalDefinition);
+  const total = headers?.get('x-total-count');
+  return (
+    <div>
+      항목: {data?.length ?? 0} / 전체: {total ?? 'n/a'}
+    </div>
+  );
 }
 ```
 
-### 재검증 동작
-- `revalidateOnWindowFocus`: 포커스 시 재검증(기본 true)
-- `revalidateOnMount`: 마운트 시 만료 상태면 재검증(기본 true)
-- `keepStaleData`: 만료 상태에서도 백그라운드 재검증 중 데이터를 유지(기본 true)
-- `enabled`: false로 비활성화 시 요청/구독 중단
-
-## 전경/배경 동작(수동 revalidate 및 자동 이벤트)
-
-revalidate()는 마운트/포커스 시 자동 재검증과 동일한 결정 로직을 사용합니다.
-- 캐시 엔트리가 없음 → 전경(foreground)
-- 캐시 엔트리가 있고 만료됨 →
-  - `keepStaleData=true`이면 배경(background)
-  - `keepStaleData=false`이면 전경(foreground)
-- 캐시 엔트리가 신선함 → 요청 없음(no-op)
-
-## 상태 플래그와 UX 매핑
-
-- 전경 패치 → `isPending=true`, `isPendingBackground=false`
-  - 눈에 보이는 로딩 상태에 사용합니다. `keepStaleData=false`이며 만료 상태라면 UI를 비우고 스피너를 표시하는 형태가 일반적입니다.
-- 배경 패치 → `isPending=false`, `isPendingBackground=true`
-  - 기존(만료된) 데이터를 유지하고, 눈에 띄는 스피너 대신 가벼운 진행 표시(예: 새로고침 버튼 비활성화)를 권장합니다.
-
-실무 가이드
-- `isPending && !data`일 때만 스피너를 보여주세요.
-- 배경 재검증 중에는 UI를 안정적으로 유지하고, 필요 시 미세한 진행 신호만 제공합니다.
+**함께 보기**
+- [Definitions](/ko/api/definitions)
+- [nexusCache](/ko/api/nexus-cache)
