@@ -16,6 +16,7 @@ const LogoImage = () => {
       alt="NEXT-NEXUS"
       width={200}
       height={48}
+      priority
     />
   );
 };
